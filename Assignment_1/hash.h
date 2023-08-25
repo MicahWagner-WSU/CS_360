@@ -19,6 +19,10 @@ int hash(char *);
 
 void hash_add(struct hash_entry *table, char *key, void *value);
 
+void check_for_rehash(struct hash_entry *table);
+
+void rehash_table(struct hash_entry *table);
+
 struct key_value *list_init();
 
 void list_add(struct key_value *list, char *key, void *value);
