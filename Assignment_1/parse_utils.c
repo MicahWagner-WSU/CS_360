@@ -1,7 +1,7 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
-#include "getWord.h"
+#include "parse_utils.h"
 
 /* Reads characters from fd until a single word is assembled */
 /* and returns a copy of the word allocated from the heap.   */
