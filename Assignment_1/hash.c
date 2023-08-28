@@ -1,6 +1,74 @@
 #include "hash.h"
 
 
+struct hash_table *hash_init() {
+	struct hash_table *new_hash_table = malloc(sizeof(struct hash_table));
+	new_hash_table->hash_entries = malloc(sizeof(struct hash_entry) * INITIAL_HASH_SIZE);
+	new_hash_table->num_of_entries = INITIAL_HASH_SIZE;
+
+	for(int i = 0; i < INITIAL_HASH_SIZE; i++) {
+		struct hash_entry *current_entry = new_hash_table->hash_entries;
+		current_entry[i].kv = list_init();
+		current_entry[i].collisions = 0;
+	}
+
+	return new_hash_table;
+}
+
+void *hash_put_if_absent(struct hash_table *table, char *key, void *value) {
+
+	unsigned long long table_index = hash_index(key) % table->num_of_entries;
+
+	struct hash_entry current_entry = table->hash_entries[table_index];
+
+	void *ret_val = list_get(current_entry.kv, key); 
+
+	if(ret_val == NULL) {
+		list_add(current_entry.kv, key, value);
+		return NULL;
+	} 
+
+	return ret_val;
+
+}
+
+
+void hash_free(struct hash_table *table) {
+	for(int i = 0; i < INITIAL_HASH_SIZE; i++) {
+		list_free(table->hash_entries[i].kv);
+	}
+	free(table->hash_entries);
+	free(table);
+}
+
+
+/*
+	given a string, this returns a very large number as an index into the hash table 
+	the number returned is computed using voodoo maths
+*/
+unsigned long long hash_index(char *string) {
+	static int initFlag = 0;
+	static unsigned long long table[CRC64_TABLE_SIZE];
+    
+	if (!initFlag) { initFlag++;
+		for (int i = 0; i < CRC64_TABLE_SIZE; i++) {
+			unsigned long long part = i;
+			for (int j = 0; j < 8; j++) {
+				if (part & 1)
+					part = (part >> 1) ^ CRC64_REV_POLY;
+				else part >>= 1;
+			}
+			table[i] = part;
+		}
+	}
+    
+	unsigned long long crc = CRC64_INITIALIZER;
+	while (*string)
+		crc = table[(crc ^ *string++) & 0xff] ^ (crc >> 8);
+	return crc;
+}
+
+
 /*
 	creates a list of key_value pairs
 	the first index of this list is going to be a sentinel node, makes implementation easier
