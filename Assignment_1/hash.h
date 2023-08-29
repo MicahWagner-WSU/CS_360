@@ -44,6 +44,8 @@ void hash_rehash_list(struct key_value *list);
 
 void hash_free(struct hash_table *table);
 
+int hash_data_count(struct hash_table *table);
+
 struct key_value *hash_to_array(struct hash_table *table);
 
 struct key_value *list_init();

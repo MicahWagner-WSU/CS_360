@@ -42,3 +42,5 @@ char* getNextWord(FILE* fd) {
 	wordBuffer[putChar] = '\0';		/* terminate the word          */
 	return strdup(wordBuffer);		/* re-allocate it off the heap */
 }
+
+

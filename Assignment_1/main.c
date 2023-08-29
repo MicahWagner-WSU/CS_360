@@ -3,7 +3,22 @@
 #include "parse_utils.h"
 #include "hash.h"
 
+int compare(const void *p, const void *q) {
+    int l = *(int *)((struct key_value *)p)->value;
+    int r = *(int *)((struct key_value *)q)->value;
+    return (r - l);
+}
+
 int main(int argc, char **argv) {
+
+
+	// create function check_args(argc, argv) returns 1 if all good, 0 if bad
+
+	// create function parse_files(argc, argv) returns pointer to hashmap
+
+	// call hashmap to array, use qsort on array
+
+	// call print sorted array up to count
 
 	// int largest_count;
 	// int num_of_files;
@@ -132,9 +147,18 @@ int main(int argc, char **argv) {
 	printf("%d \n", *(int*)hash_put_if_absent(table, key10, NULL));
 	printf("%d \n", *(int*)hash_put_if_absent(table, key11, NULL));
 
-	printf("%d", table->num_of_entries);
+	printf("table size:%d \n", table->num_of_entries);
+
+	struct key_value *kv_array = hash_to_array(table);
+
+	qsort((void *) kv_array, hash_data_count(table), sizeof(struct key_value), compare);
+
+	for(int i = 0; i < hash_data_count(table); i++) {
+		printf("%d \n", *(int *)kv_array[i].value);
+	}
 
 	hash_free(table);
+	free(kv_array);
 
 
 	return 0;

@@ -60,6 +60,8 @@ struct hash_table *hash_init(unsigned int size) {
 	This funcion will first search if the specified key is in the hashmap
 	if the key is in the hash map, we will return a void pointer to the data associated with the key
 	if its not in the hash map, it will create a new key_value pair in the hashmap and return NULL
+
+	So this function is used to get some data specified by a key, or create a new entry
 */
 void *hash_put_if_absent(struct hash_table *table, char *key, void *value) {
 
@@ -120,6 +122,7 @@ int hash_check_for_rehash(struct hash_table *table) {
 
 /*
 	this will rehash a given hash table, expanding the size by three
+	when re-adding data to the new hashtable, we call hash_add_no_rehash since we know we dont need to check for rehashing
 */
 void hash_rehash_table(struct hash_table *table) {
 
@@ -173,6 +176,45 @@ void hash_rehash_table(struct hash_table *table) {
 	free(tmp);
 
 }
+
+struct key_value *hash_to_array(struct hash_table *table) {
+	// get total amount of data in the hashmap
+	int total_data = hash_data_count(table);
+	struct key_value *current;
+	int new_kv_array_index = 0;
+
+	struct key_value *new_kv_array = malloc(sizeof(struct key_value) * total_data);
+
+	// loops over every entry and 
+	for(int i = 0; i < table->num_of_entries; i++) {
+
+		current = table->hash_entries[i].kv->next;
+
+		while(current != NULL) {
+			new_kv_array[new_kv_array_index].key = current->key;
+			new_kv_array[new_kv_array_index].value = current->value;
+			new_kv_array[new_kv_array_index].next = NULL;
+			current = current->next;
+			new_kv_array_index++;
+		}
+	}
+	return new_kv_array;
+}
+
+
+int hash_data_count(struct hash_table *table) {
+
+	int total_data = 0;
+
+	// loops over every entry and counts all data
+	for(int i = 0; i < table->num_of_entries; i++) {
+		// however many collisions this entry has is how much data is in the entry, so add that to total data
+		total_data = total_data + table->hash_entries[i].collisions;
+	}
+
+	return total_data;
+}
+
 
 /*
 	This will completely free the hash table from the heap
