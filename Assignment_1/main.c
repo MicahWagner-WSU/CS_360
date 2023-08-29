@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
 	// 	i++;
 	// }
 
-	struct hash_table *table = hash_init();
+	struct hash_table *table = hash_init(INITIAL_HASH_SIZE);
 
 	char *key = malloc(sizeof(char) * 2);
 	char *key1 = malloc(sizeof(char) * 2);
@@ -55,6 +55,8 @@ int main(int argc, char **argv) {
 	char *key7 = malloc(sizeof(char) * 2);
 	char *key8 = malloc(sizeof(char) * 2);
 	char *key9 = malloc(sizeof(char) * 2);
+	char *key10 = malloc(sizeof(char) * 2);
+	char *key11 = malloc(sizeof(char) * 2);
 
 	strcpy(key, "A");
 	strcpy(key1, "B");
@@ -66,6 +68,8 @@ int main(int argc, char **argv) {
 	strcpy(key7, "H");
 	strcpy(key8, "I");
 	strcpy(key9, "J");
+	strcpy(key10, "K");
+	strcpy(key11, "L");
 
 	int *data = malloc(sizeof(int));
 	*data = 0;
@@ -97,6 +101,12 @@ int main(int argc, char **argv) {
 	int *data9 = malloc(sizeof(int));
 	*data9 = 9;
 
+	int *data10 = malloc(sizeof(int));
+	*data10 = 10;
+
+	int *data11 = malloc(sizeof(int));
+	*data11 = 11;
+
 	hash_put_if_absent(table, key, data);
 	hash_put_if_absent(table, key1, data1);
 	hash_put_if_absent(table, key2, data2);
@@ -107,6 +117,8 @@ int main(int argc, char **argv) {
 	hash_put_if_absent(table, key7, data7);
 	hash_put_if_absent(table, key8, data8);
 	hash_put_if_absent(table, key9, data9);
+	hash_put_if_absent(table, key10, data10);
+	hash_put_if_absent(table, key11, data11);
 	printf("%d \n", *(int*)hash_put_if_absent(table, key, NULL));
 	printf("%d \n", *(int*)hash_put_if_absent(table, key1, NULL));
 	printf("%d \n", *(int*)hash_put_if_absent(table, key2, NULL));
@@ -117,6 +129,10 @@ int main(int argc, char **argv) {
 	printf("%d \n", *(int*)hash_put_if_absent(table, key7, NULL));
 	printf("%d \n", *(int*)hash_put_if_absent(table, key8, NULL));
 	printf("%d \n", *(int*)hash_put_if_absent(table, key9, NULL));
+	printf("%d \n", *(int*)hash_put_if_absent(table, key10, NULL));
+	printf("%d \n", *(int*)hash_put_if_absent(table, key11, NULL));
+
+	printf("%d", table->num_of_entries);
 
 	hash_free(table);
 
