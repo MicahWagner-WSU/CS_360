@@ -50,9 +50,8 @@ struct key_value *hash_to_array(struct hash_table *table);
 
 struct key_value *list_init();
 
-void list_add(struct key_value *list_sentinel, char *key, void *value);
+void *list_add(struct key_value *list_sentinel, char *key, void *value);
 
-// data is stored from this function into data
 void *list_get(struct key_value *list_sentinel, char *key);
 
 void list_free(struct key_value *list_sentinel);

@@ -25,6 +25,7 @@ static void hash_add_no_rehash(struct hash_table *table, char *key, void *value)
 
 /*
 	initializes a hash table, returns pointer to hash table
+	returns NULL if any errors occur
 */
 struct hash_table *hash_init(unsigned int size) {
 
@@ -34,8 +35,14 @@ struct hash_table *hash_init(unsigned int size) {
 	// allocate space for hash table on the heap
 	struct hash_table *new_hash_table = malloc(sizeof(struct hash_table));
 
+	//malloc failed, return null
+	if(new_hash_table == NULL) return NULL;
+
 	// allocate space for hash entries
 	new_hash_table->hash_entries = malloc(sizeof(struct hash_entry) * size);
+
+	// malloc failed, return null
+	if(new_hash_table->hash_entries == NULL) return NULL;
 
 	// set the current entry size in the corresponding hash table field
 	new_hash_table->num_of_entries = size;
@@ -62,6 +69,7 @@ struct hash_table *hash_init(unsigned int size) {
 	if its not in the hash map, it will create a new key_value pair in the hashmap and return NULL
 
 	So this function is used to get some data specified by a key, or create a new entry
+
 */
 void *hash_put_if_absent(struct hash_table *table, char *key, void *value) {
 
@@ -177,27 +185,52 @@ void hash_rehash_table(struct hash_table *table) {
 
 }
 
+/*
+	returns an array of key_value pairs that are currently stored in table
+	this function will not dealocate anything from the hash map
+	after freeing the hashmap, all the data in the returned array with point to invalid locations
+	this returns NULL if an error occured
+*/
 struct key_value *hash_to_array(struct hash_table *table) {
+
 	// get total amount of data in the hashmap
 	int total_data = hash_data_count(table);
+
+	// index into each linked list from the hashmap
 	struct key_value *current;
+
+	// index into the new array we will return
 	int new_kv_array_index = 0;
 
+	// initialize a new array on the heap big enough to contain all data in the hashmap
 	struct key_value *new_kv_array = malloc(sizeof(struct key_value) * total_data);
 
-	// loops over every entry and 
+	// return NULL, malloc failed
+	if (new_kv_array == NULL) return NULL;
+
+	// loops over every entry and copy data from each link list to the array 
 	for(int i = 0; i < table->num_of_entries; i++) {
 
+		// set surrent to point to the current entries linked list
 		current = table->hash_entries[i].kv->next;
 
+		// loop over each key value pair in the linked list, quit if we hit null as thats the last pair
 		while(current != NULL) {
+
+			// copy over the data to the new array of key value pairs
 			new_kv_array[new_kv_array_index].key = current->key;
 			new_kv_array[new_kv_array_index].value = current->value;
+
+			// set next to null because we dont care about mainting the linked list structure
 			new_kv_array[new_kv_array_index].next = NULL;
+
+			//increment index into linked list and index into array
 			current = current->next;
 			new_kv_array_index++;
 		}
 	}
+
+	// return the new array of key value pairs
 	return new_kv_array;
 }
 
@@ -270,7 +303,10 @@ unsigned long long hash_index(char *string) {
 struct key_value *list_init() {
 
 	// create a pointer to a new list, allocate space on heap for sentinel node
-	struct key_value *new_list = malloc(sizeof(struct key_value));	/* ask about if we should check for error here, and how so*/
+	struct key_value *new_list = malloc(sizeof(struct key_value));	
+
+	//malloc failed, return null
+	if(new_list == NULL) return NULL;
 
 	// initialize all data on sentinel node to null
 	new_list->key = NULL;
@@ -286,11 +322,16 @@ struct key_value *list_init() {
 	add them write after the sentinel in order to avoid looping over the whole list
 
 	parameters are the list to add to (the sentinel), the asociated key and value of the new key_value pair
+	returns NULL if an error occured
 */
-void list_add(struct key_value *list_sentinel, char *key, void *value) {
+void *list_add(struct key_value *list_sentinel, char *key, void *value) {
 
 	// create the new key_value pair on the heap, and set its key and value pairs accordingly
 	struct key_value *new_key_val = malloc(sizeof(struct key_value));
+
+	//malloc failed, return null
+	if(new_key_val == NULL) return NULL;
+
 	new_key_val->key = key;
 	new_key_val->value = value;
 
@@ -324,10 +365,6 @@ void *list_get(struct key_value *list_sentinel, char *key)	{
 	return NULL;
 }
 
-
-void list_combine(struct key_value *list_sentinel, struct key_value *list_sentinel_to_combine) {
-
-}
 
 /*
 	This function frees each key value pair from a given list, deallocating the value and key
