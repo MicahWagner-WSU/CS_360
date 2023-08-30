@@ -1,3 +1,14 @@
+/*
+Micah Wagner
+CSE 360
+Assignment 1
+
+desc:
+	This file contains all the functions for checking the input format and parsing the file
+	this file consists of ...
+
+*/
+
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>

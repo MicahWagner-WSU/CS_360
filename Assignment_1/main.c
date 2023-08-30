@@ -1,4 +1,13 @@
-// maybe add comment block and main.h include?
+/*
+Micah Wagner
+CSE 360
+Assignment 1
+
+desc:
+	This is the main file that will call all the parse functions and print functions. 
+	This file is relatively uneventful, it just calls all the functions from the other files.
+
+*/
 #include <stdlib.h>
 #include "parse_utils.h"
 #include "hash.h"

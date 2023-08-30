@@ -1,3 +1,15 @@
+/*
+Micah Wagner
+CSE 360
+Assignment 1
+
+desc:
+	This is the main file that contains all the source functions to create and manipulate 
+	a hashmap. This also contains several functions to create a manipulate a list, which the hash
+	map function uses.
+
+*/
+
 #include "hash.h"
 
 
