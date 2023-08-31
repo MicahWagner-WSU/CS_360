@@ -15,6 +15,7 @@
 struct hash_table {
 	struct hash_entry *hash_entries;
 	unsigned int num_of_entries;
+	unsigned int amount_of_data;
 };
 
 
@@ -33,8 +34,12 @@ struct hash_table *hash_init(unsigned int size);
 
 unsigned long long hash_index(char *);
 
-//name inspired by java even though I dont like java
-void *hash_put_if_absent(struct hash_table *table, char *key, void *value);
+
+//void *hash_put_if_absent(struct hash_table *table, char *key, void *value);
+
+int hash_add(struct hash_table *table, char *key, void *value);
+
+void *hash_get(struct hash_table *table, char *key);
 
 int hash_check_for_rehash(struct hash_table *table);
 
@@ -44,7 +49,6 @@ void hash_rehash_list(struct key_value *list);
 
 void hash_free(struct hash_table *table);
 
-int hash_data_count(struct hash_table *table);
 
 struct key_value *hash_to_array(struct hash_table *table);
 

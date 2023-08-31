@@ -1,8 +1,8 @@
 pairsofwords: main.o parse_utils.o hash.o
 	cc -o $@ $^
-main.o: main.c hash.h parse_utils.h
+main.o: main.c parse_utils.h
 	cc -c main.c
-parse_utils.o: parse_utils.c parse_utils.h
+parse_utils.o: parse_utils.c parse_utils.h hash.h
 	cc -c parse_utils.c
 hash.o: hash.c hash.h
 	cc -c hash.c

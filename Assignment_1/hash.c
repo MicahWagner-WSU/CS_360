@@ -33,6 +33,9 @@ static void hash_add_no_rehash(struct hash_table *table, char *key, void *value)
 	// we have a collision, so increment
 	table->hash_entries[table_index].collisions++;
 
+	// increment the amount of total data in the hashmap
+	table->amount_of_data++;
+
 }
 
 /*
@@ -56,8 +59,9 @@ struct hash_table *hash_init(unsigned int size) {
 	// malloc failed, return null
 	if(new_hash_table->hash_entries == NULL) return NULL;
 
-	// set the current entry size in the corresponding hash table field
+	// set the current entry size in the corresponding hash table field, make amount of data 0 because this is a new hashmap
 	new_hash_table->num_of_entries = size;
+	new_hash_table->amount_of_data = 0;
 
 	// loop over each hash entry, and create a new list for each entry
 	for(int i = 0; i < size; i++) {
@@ -75,44 +79,78 @@ struct hash_table *hash_init(unsigned int size) {
 	return new_hash_table;
 }
 
-/*
-	This funcion will first search if the specified key is in the hashmap
-	if the key is in the hash map, we will return a void pointer to the data associated with the key
-	if its not in the hash map, it will create a new key_value pair in the hashmap and return NULL
+// /*
+// 	This funcion will first search if the specified key is in the hashmap
+// 	if the key is in the hash map, we will return a void pointer to the data associated with the key
+// 	if its not in the hash map, it will create a new key_value pair in the hashmap and return NULL
 
-	So this function is used to get some data specified by a key, or create a new entry
+// 	So this function is used to get some data specified by a key, or create a new entry
 
-*/
-void *hash_put_if_absent(struct hash_table *table, char *key, void *value) {
+// */
+// void *hash_put_if_absent(struct hash_table *table, char *key, void *value) {
 
-	// check if we need to rehash, if so, rehash the hash table
-	if(hash_check_for_rehash(table)) hash_rehash_table(table);
+// 	// check if we need to rehash, if so, rehash the hash table
+// 	if(hash_check_for_rehash(table)) hash_rehash_table(table);
+
+// 	// get an index into the hashmap, mod with number of entries to remap hash_index(key) within the bounds of the table size
+// 	unsigned long long table_index = hash_index(key) % table->num_of_entries;
+
+// 	// get the entry associated with the key
+// 	struct hash_entry current_entry = table->hash_entries[table_index];
+
+// 	// see if key is already in list
+// 	void *ret_val = list_get(current_entry.kv, key); 
+
+// 	// if ret_val is NULL, then we need to add the data to the list
+// 	if(ret_val == NULL) {
+
+// 		// add the data to the list
+// 		list_add(current_entry.kv, key, value);
+
+// 		// we have a collision, so increment
+// 		table->hash_entries[table_index].collisions++;
+
+// 		// return NULL since we made a key value pair
+// 		return NULL;
+// 	} 
+
+// 	// key value pair already exists, return a reference to the value
+// 	return ret_val;
+
+// }
+
+
+int hash_add(struct hash_table *table, char *key, void *value) {
 
 	// get an index into the hashmap, mod with number of entries to remap hash_index(key) within the bounds of the table size
 	unsigned long long table_index = hash_index(key) % table->num_of_entries;
 
-	// get the entry associated with the key
-	struct hash_entry current_entry = table->hash_entries[table_index];
+	// add the data to the list
+	void *ret_val = list_add(table->hash_entries[table_index].kv, key, value);
+
+	// we have a collision, so increment
+	table->hash_entries[table_index].collisions++;
+
+	// more data added to table, increment data counter
+	table->amount_of_data++;
+
+	// check if we need to rehash, if so, rehash the hash table
+	if(hash_check_for_rehash(table)) hash_rehash_table(table);
+
+	if(ret_val == NULL) return -1;
+
+	return 1;
+}
+
+void *hash_get(struct hash_table *table, char *key) {
+	// get an index into the hashmap, mod with number of entries to remap hash_index(key) within the bounds of the table size
+	unsigned long long table_index = hash_index(key) % table->num_of_entries;
 
 	// see if key is already in list
-	void *ret_val = list_get(current_entry.kv, key); 
+	void *ret_val = list_get(table->hash_entries[table_index].kv, key); 
 
-	// if ret_val is NULL, then we need to add the data to the list
-	if(ret_val == NULL) {
-
-		// add the data to the list
-		list_add(current_entry.kv, key, value);
-
-		// we have a collision, so increment
-		table->hash_entries[table_index].collisions++;
-
-		// return NULL since we made a key value pair
-		return NULL;
-	} 
-
-	// key value pair already exists, return a reference to the value
+	// return a reference to the value
 	return ret_val;
-
 }
 
 /*
@@ -124,17 +162,12 @@ void *hash_put_if_absent(struct hash_table *table, char *key, void *value) {
 int hash_check_for_rehash(struct hash_table *table) {
 
 	// reperesents total amount of data in the hashmap
-	int total_data = 0;
+	int total_data = table->amount_of_data;
 
-	// loops over every entry and counts all data
-	for(int i = 0; i < table->num_of_entries; i++) {
 
-		// however many collisions this entry has is how much data is in the entry, so add that to total data
-		total_data = total_data + table->hash_entries[i].collisions;
+	// if we get larger than the LOAD_FACTOR, return 1 for true
+	if(((double) total_data / table->num_of_entries) > LOAD_FACTOR) return 1;
 
-		// if we get larger than the LOAD_FACTOR, return 1 for true
-		if(((double) total_data / table->num_of_entries) > LOAD_FACTOR) return 1;
-	}
 
 	// we dont need to rehash, return 0
 	return 0;
@@ -206,7 +239,7 @@ void hash_rehash_table(struct hash_table *table) {
 struct key_value *hash_to_array(struct hash_table *table) {
 
 	// get total amount of data in the hashmap
-	int total_data = hash_data_count(table);
+	int total_data = table->amount_of_data;
 
 	// index into each linked list from the hashmap
 	struct key_value *current;
@@ -244,20 +277,6 @@ struct key_value *hash_to_array(struct hash_table *table) {
 
 	// return the new array of key value pairs
 	return new_kv_array;
-}
-
-
-int hash_data_count(struct hash_table *table) {
-
-	int total_data = 0;
-
-	// loops over every entry and counts all data
-	for(int i = 0; i < table->num_of_entries; i++) {
-		// however many collisions this entry has is how much data is in the entry, so add that to total data
-		total_data = total_data + table->hash_entries[i].collisions;
-	}
-
-	return total_data;
 }
 
 
