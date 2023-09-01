@@ -298,8 +298,11 @@ char* getNextWord(FILE* fd) {
 */
 int print_kv_array(struct key_value *kv_arr, int count, int length) {
 
-	// if the length of the array is less than the count, or if length is 0, we have an error so return -1
-	if(length < count || length == 0) return -1;
+	// if length is 0, we have an error so return -1
+	if(length == 0) return -1;
+
+	// if count is greater than the amount of objects in the array, restrict it to the size of the array
+	if(count > length) count = length;
 
 	//loop over the array up until count and print those key_value pairs
 	for(int i = 0; i < (count > 0 ? count : length); i++) {

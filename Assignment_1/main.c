@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 	int count = get_count(argc, argv);
 
 	// user didn't specify count correctly, exit
-	if(count == -1) exit(1);
+	if(count <= -1) exit(1);
 
 	// get the number of files and get an array of all the files user specified to open
 	int num_of_files;
