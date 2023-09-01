@@ -38,10 +38,7 @@ static void hash_add_no_rehash(struct hash_table *table, char *key, void *value)
 
 }
 
-/*
-	initializes a hash table, returns pointer to hash table
-	returns NULL if any errors occur
-*/
+
 struct hash_table *hash_init(unsigned int size) {
 
 	// if size is 0, return null because 0 is an invalid size
@@ -102,6 +99,7 @@ int hash_add(struct hash_table *table, char *key, void *value) {
 	return 1;
 }
 
+
 void *hash_get(struct hash_table *table, char *key) {
 	// get an index into the hashmap, mod with number of entries to remap hash_index(key) within the bounds of the table size
 	unsigned long long table_index = hash_index(key) % table->num_of_entries;
@@ -113,12 +111,7 @@ void *hash_get(struct hash_table *table, char *key) {
 	return ret_val;
 }
 
-/*
-	this function will loop over each entry in the hash table and count total collisions
-	total collisions represent the total amount of data in the hashmap
-	once coutning all the data, we compare total_data/num_of_entries to the LOAD_FACTOR
-	if its greater than the LOAD_FACTOR, the we need to rehash
-*/
+
 int hash_check_for_rehash(struct hash_table *table) {
 
 	// reperesents total amount of data in the hashmap
@@ -133,10 +126,7 @@ int hash_check_for_rehash(struct hash_table *table) {
 	return 0;
 }
 
-/*
-	this will rehash a given hash table, expanding the size by three
-	when re-adding data to the new hashtable, we call hash_add_no_rehash since we know we dont need to check for rehashing
-*/
+
 void hash_rehash_table(struct hash_table *table) {
 
 	// create a temperary new hashmap 3 times the size as the original
@@ -190,12 +180,7 @@ void hash_rehash_table(struct hash_table *table) {
 
 }
 
-/*
-	returns an array of key_value pairs that are currently stored in table
-	this function will not dealocate anything from the hash map
-	after freeing the hashmap, all the data in the returned array with point to invalid locations
-	this returns NULL if an error occured
-*/
+
 struct key_value *hash_to_array(struct hash_table *table) {
 
 	// get total amount of data in the hashmap
@@ -240,9 +225,7 @@ struct key_value *hash_to_array(struct hash_table *table) {
 }
 
 
-/*
-	This will completely free the hash table from the heap
-*/
+
 void hash_free(struct hash_table *table) {
 
 	// loop over each list from each hash entry
@@ -260,10 +243,6 @@ void hash_free(struct hash_table *table) {
 }
 
 
-/*
-	given a string, this returns a very large number as an index into the hash table 
-	the number returned is computed using voodoo maths
-*/
 unsigned long long hash_index(char *string) {
 	static int initFlag = 0;
 	static unsigned long long table[CRC64_TABLE_SIZE];
@@ -287,10 +266,6 @@ unsigned long long hash_index(char *string) {
 }
 
 
-/*
-	creates a list of key_value pairs
-	the first index of this list is going to be a sentinel node, makes implementation easier
-*/
 struct key_value *list_init() {
 
 	// create a pointer to a new list, allocate space on heap for sentinel node
@@ -308,13 +283,6 @@ struct key_value *list_init() {
 	return new_list;
 }
 
-/*
-	adds a new key value pair to the beginning of the list (after sentinel node)
-	add them write after the sentinel in order to avoid looping over the whole list
-
-	parameters are the list to add to (the sentinel), the asociated key and value of the new key_value pair
-	returns NULL if an error occured
-*/
 void *list_add(struct key_value *list_sentinel, char *key, void *value) {
 
 	// create the new key_value pair on the heap, and set its key and value pairs accordingly
@@ -334,9 +302,6 @@ void *list_add(struct key_value *list_sentinel, char *key, void *value) {
 }
 
 
-/*
-	given the sentinel node of a list and a key, this returns the value associated with that key
-*/
 void *list_get(struct key_value *list_sentinel, char *key)	{
 
 	// create an index into the list, start pointing at true first key value pair
@@ -356,10 +321,6 @@ void *list_get(struct key_value *list_sentinel, char *key)	{
 	return NULL;
 }
 
-
-/*
-	This function frees each key value pair from a given list, deallocating the value and key
-*/
 void list_free(struct key_value *list_sentinel) {
 
 	// points to most current node 
