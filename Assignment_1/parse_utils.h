@@ -25,9 +25,11 @@ FILE **get_files(int argc, char **argv, int count_present, int *num_of_files);
 
 void free_files(FILE **files, int num_of_files);
 
-int count_word_pairs(FILE **files, struct hash_table *table, int num_of_files);
+void count_word_pairs(FILE **files, struct hash_table *table, int num_of_files);
 
 int compare(const void *p, const void *q);
+
+int print_kv_array(struct key_value *kv_arr, int count, int length);
 
 char *concat_string(char *str1, char *str2);
 

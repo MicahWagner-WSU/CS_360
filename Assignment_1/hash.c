@@ -79,46 +79,6 @@ struct hash_table *hash_init(unsigned int size) {
 	return new_hash_table;
 }
 
-// /*
-// 	This funcion will first search if the specified key is in the hashmap
-// 	if the key is in the hash map, we will return a void pointer to the data associated with the key
-// 	if its not in the hash map, it will create a new key_value pair in the hashmap and return NULL
-
-// 	So this function is used to get some data specified by a key, or create a new entry
-
-// */
-// void *hash_put_if_absent(struct hash_table *table, char *key, void *value) {
-
-// 	// check if we need to rehash, if so, rehash the hash table
-// 	if(hash_check_for_rehash(table)) hash_rehash_table(table);
-
-// 	// get an index into the hashmap, mod with number of entries to remap hash_index(key) within the bounds of the table size
-// 	unsigned long long table_index = hash_index(key) % table->num_of_entries;
-
-// 	// get the entry associated with the key
-// 	struct hash_entry current_entry = table->hash_entries[table_index];
-
-// 	// see if key is already in list
-// 	void *ret_val = list_get(current_entry.kv, key); 
-
-// 	// if ret_val is NULL, then we need to add the data to the list
-// 	if(ret_val == NULL) {
-
-// 		// add the data to the list
-// 		list_add(current_entry.kv, key, value);
-
-// 		// we have a collision, so increment
-// 		table->hash_entries[table_index].collisions++;
-
-// 		// return NULL since we made a key value pair
-// 		return NULL;
-// 	} 
-
-// 	// key value pair already exists, return a reference to the value
-// 	return ret_val;
-
-// }
-
 
 int hash_add(struct hash_table *table, char *key, void *value) {
 
