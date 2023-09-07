@@ -23,17 +23,19 @@ if not found, or the error number if an error occurs.
 
 int lineNum(char *dictionaryName, char *word, int length) 
 {
-	// clean up later
 	char buffer[512] = {0};
 	int dict_fd = open(dictionaryName, O_RDONLY);
-	int file_index = lseek(dict_fd, 0, SEEK_END) / 2;
-	int line_number = file_index / length;
-	file_index = lseek(dict_fd, (line_number-1) * length, SEEK_SET);
-	int step = line_number/2;
+	int search_high = lseek(dict_fd, 0, SEEK_END) / length;
+	int search_low = 0;
+	int file_index;
+	int line_number;
 
 
-	while(1) {
+	while(search_low <= search_high) {
 
+
+		file_index = lseek(dict_fd, ((search_high + search_low) / 2) * length, SEEK_SET);
+		line_number = file_index / length;
 		read(dict_fd, buffer, length);
 
 		// clean up the buffer by eliminating white space after the word
@@ -50,24 +52,15 @@ int lineNum(char *dictionaryName, char *word, int length)
 
 		if(comp == 0) {
 			close(dict_fd);
-			return line_number;
+			return line_number + 1;
 		} else if(comp > 0) {
-			// find a better way to get the proper index
-			// try to calculate line number first, and step relative to line number, all you feed to lseek is line number * length
-			line_number = line_number - step;
-			file_index = lseek(dict_fd, (line_number-1)*length, SEEK_SET);
+			search_high = line_number - 1;
 		} else if(comp < 0) {
-			// find a better way to get the proper index
-			line_number = line_number + step;
-			file_index = lseek(dict_fd, (line_number-1)*length, SEEK_SET);
-		}
+			search_low = line_number + 1;
 
-		if(step/2 != 0) 
-			step /= 2;
-		else
-			step = 1;
+		}
 	} 
 
 	close(dict_fd);
-	return line_number * -1;
+	return (line_number > 0) ? line_number * -1 : -1;
 }

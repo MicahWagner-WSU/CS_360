@@ -3,7 +3,7 @@ main: main.o lineNum.o
 main.o: main.c lineNum.h
 	cc -g -c main.c
 lineNum.o: lineNum.c 
-	cc -g -c lineNum.c
+	cc -g -c lineNum.c 
 
 
 .Phony: clean
