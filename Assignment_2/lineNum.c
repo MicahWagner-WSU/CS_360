@@ -23,15 +23,16 @@ if not found, or the error number if an error occurs.
 
 int lineNum(char *dictionaryName, char *word, int length) 
 {
+	// clean up later
 	char buffer[512] = {0};
 	int dict_fd = open(dictionaryName, O_RDONLY);
 	int file_index = lseek(dict_fd, 0, SEEK_END) / 2;
 	int line_number = file_index / length;
-	lseek(dict_fd, line_number * length, SEEK_SET);
-	int step = file_index/2;
+	file_index = lseek(dict_fd, (line_number-1) * length, SEEK_SET);
+	int step = line_number/2;
 
 
-	while(step > length / 2) {
+	while(1) {
 
 		read(dict_fd, buffer, length);
 
@@ -52,15 +53,19 @@ int lineNum(char *dictionaryName, char *word, int length)
 			return line_number;
 		} else if(comp > 0) {
 			// find a better way to get the proper index
-			file_index = lseek(dict_fd, ((file_index - step)/length)*length, SEEK_SET);
-			line_number = (file_index / length) + 1;
+			// try to calculate line number first, and step relative to line number, all you feed to lseek is line number * length
+			line_number = line_number - step;
+			file_index = lseek(dict_fd, (line_number-1)*length, SEEK_SET);
 		} else if(comp < 0) {
 			// find a better way to get the proper index
-			file_index = lseek(dict_fd, ((file_index + step)/length)*length, SEEK_SET);
-			line_number = (file_index / length) + 1;
+			line_number = line_number + step;
+			file_index = lseek(dict_fd, (line_number-1)*length, SEEK_SET);
 		}
 
-		step /= 2;
+		if(step/2 != 0) 
+			step /= 2;
+		else
+			step = 1;
 	} 
 
 	close(dict_fd);
