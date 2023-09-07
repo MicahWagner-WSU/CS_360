@@ -31,7 +31,7 @@ int lineNum(char *dictionaryName, char *word, int length)
 	int line_number;
 
 
-	while(search_low <= search_high) {
+	while (search_low <= search_high) {
 
 
 		file_index = lseek(dict_fd, ((search_high + search_low) / 2) * length, SEEK_SET);
@@ -42,7 +42,7 @@ int lineNum(char *dictionaryName, char *word, int length)
 		int null_index = length - 1;
 
 		do {
-			if(buffer[--null_index] != ' ') {
+			if (buffer[--null_index] != ' ') {
 				buffer[null_index + 1] = '\0';
 				break;
 			}
@@ -50,12 +50,12 @@ int lineNum(char *dictionaryName, char *word, int length)
 
 		int comp = strcmp(buffer, word);
 
-		if(comp == 0) {
+		if (comp == 0) {
 			close(dict_fd);
 			return line_number + 1;
-		} else if(comp > 0) {
+		} else if (comp > 0) {
 			search_high = line_number - 1;
-		} else if(comp < 0) {
+		} else if (comp < 0) {
 			search_low = line_number + 1;
 
 		}
