@@ -26,14 +26,14 @@ int lineNum(char *dictionaryName, char *word, int length)
 	char buffer[512] = {0};
 	int dict_fd = open(dictionaryName, O_RDONLY);
 	if (dict_fd == -1) {
-		perror("Error opening file -- ");
+		perror("Error opening file");
 		return errno;
 	}
 
 	// high end of our binary seach space converted to line number
 	int search_high = lseek(dict_fd, 0, SEEK_END) / length;
 	if (search_high == -1) {
-		perror("Error lseeking -- ");
+		perror("Error lseeking");
 		return errno;
 	}
 
@@ -49,14 +49,14 @@ int lineNum(char *dictionaryName, char *word, int length)
 		// set the file index to be half way in between the binary search space
 		file_index = lseek(dict_fd, ((search_high + search_low) / 2) * length, SEEK_SET);
 		if (file_index == -1) {
-			perror("Error lseeking -- ");
+			perror("Error lseeking");
 			return errno;
 		}
 
 		// note that this is the line before the word we're checking
 		line_number = file_index / length;
 		if (read(dict_fd, buffer, length) == -1) {
-			perror("Error reading -- ");
+			perror("Error reading");
 			return errno;
 		}
 
@@ -74,7 +74,7 @@ int lineNum(char *dictionaryName, char *word, int length)
 		// if comparison matches, return line number + 1 since line number is one word behind
 		if (comp == 0) {
 			if (close(dict_fd) == -1) {
-				perror("Error closing -- ");
+				perror("Error closing");
 				return errno;
 			}
 
@@ -94,7 +94,7 @@ int lineNum(char *dictionaryName, char *word, int length)
 	// word not found, return where we failed 
 	// this ternary operation prevents from logging 0
 	if (close(dict_fd) == -1) {
-		perror("Error closing -- ");
+		perror("Error closing");
 		return errno;
 	}
 	return (line_number > 0) ? line_number * -1 : -1;
