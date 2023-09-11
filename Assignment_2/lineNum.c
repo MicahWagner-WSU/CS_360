@@ -26,18 +26,22 @@ int lineNum(char *dictionaryName, char *word, int length)
 {
 	char buffer[512] = {0};
 	int store_errno;
-	char *word_truncated = calloc(length, sizeof(char));
-	store_errno = errno;
+	char *word_truncated = calloc(length + 1, sizeof(char));
 	int dict_fd = open(dictionaryName, O_RDONLY);
+	store_errno = errno;
 	if (dict_fd == -1) {
 		perror("Error opening file");
+		free(word_truncated);
 		return store_errno;
 	}
 
 	// high end of our binary seach space converted to line number
 	int search_high = (lseek(dict_fd, 0, SEEK_END) / length);
+	store_errno = errno;
 	if (search_high == -1) {
 		perror("Error lseeking");
+		free(word_truncated);
+		close(dict_fd);
 		return errno;
 	}
 
@@ -70,13 +74,13 @@ int lineNum(char *dictionaryName, char *word, int length)
 		store_errno = errno;
 		if (file_index == -1) {
 			perror("Error lseeking");
-			return store_errno;
+			break;
 		}
 
 		if (read(dict_fd, buffer, length) == -1) {
 			store_errno = errno;
 			perror("Error reading");
-			return store_errno;
+			break;
 		}
 
 		int null_index = length - 1;
@@ -92,11 +96,7 @@ int lineNum(char *dictionaryName, char *word, int length)
 
 		// if comparison matches, return line number 
 		if (comp == 0) {
-			if (close(dict_fd) == -1) {
-				store_errno = errno;
-				perror("Error closing");
-				return store_errno;
-			}
+			close(dict_fd);
 			free(word_truncated);
 			return line_number;
 		} else if (comp > 0) {
@@ -111,14 +111,10 @@ int lineNum(char *dictionaryName, char *word, int length)
 		}
 	} 
 
-	if (close(dict_fd) == -1) {
-		store_errno = errno;
-		perror("Error closing");
-		return store_errno;
-	}
-	
 	free(word_truncated);
 
-	// return line number * -1
-	return line_number * -1;
+	close(dict_fd);
+
+	// return line number * -1 because we didn't find the word
+	return (store_errno == 0) ? line_number * -1: store_errno;
 }
