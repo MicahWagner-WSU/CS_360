@@ -115,6 +115,7 @@ int lineNum(char *dictionaryName, char *word, int length)
 
 	close(dict_fd);
 
-	// return line number * -1 because we didn't find the word
+	// return line number * -1 because we didn't find the word 
+	// return errno if present
 	return (store_errno == 0) ? line_number * -1: store_errno;
 }
