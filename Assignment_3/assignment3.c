@@ -73,7 +73,11 @@ int readable(char *inputPath)
 	return recursive_check(inputPath);
 }
 
-
+/*
+ * NOTE: after every error check, I ignore permission denied errors
+ * since this was already accounted for in our first function
+ * if we get a permission denied, just return 0
+ */
 int recursive_check(char *inputPath)
 {
 	int copy_errno;
@@ -82,36 +86,43 @@ int recursive_check(char *inputPath)
 	struct dirent *file_read;
 	 
 	struct stat area, *s = &area;
-
 	// get the status of the given file
 	if (lstat(inputPath, s) == 0){
 		// base case 1 is that we hit a regular file
 		if (S_ISREG(s->st_mode)) {
-			if (s->st_mode & S_IRUSR)
+			// cehck if its readable by us
+			if (access(inputPath, R_OK) == 0) {
 				return 1;
-			else
+			} else {
 				//cant read, so dont increment count
-				return 0;
-		// base case 2 is that we hit a directory we cant read/cd into
-		} else if (S_ISDIR(s->st_mode)    && 
-			 (!(s->st_mode & S_IRUSR) || 
-			  !(s->st_mode & S_IXUSR))) {
-			return 0;
-		// base case 3 is that we hit a special file
+				if(errno == EACCES) {
+					return 0;
+				} else {
+					copy_errno = errno;
+					fprintf(stderr, "Error accessing file");
+					return -copy_errno;
+				}
+			}
+		// base case 2 is that we hit a special file
 		} else if (!S_ISDIR(s->st_mode)){
 			return 0;
 		}
 	// getting status of file failed for some reason 
 	} else {
+		if(errno == EACCES)
+			return 0;
 		copy_errno = errno;
 		fprintf(stderr, "Error getting status of file");
 		return -copy_errno;
 	}
 
+
 	// given path is a directory, return -errno if cant open
 	working_dir = opendir(inputPath);
 	if (working_dir == NULL) {
 		copy_errno = errno;
+		if(errno == EACCES)
+			return 0;
 		fprintf(stderr, "Error opening file");
 		return -copy_errno;
 	}
@@ -119,7 +130,12 @@ int recursive_check(char *inputPath)
 	// change directory into the path to use relative path names
 	// return -errno if error occurs
 	if (chdir(inputPath) == -1) {
+		if(errno == EACCES) {
+			closedir(working_dir);
+			return 0;
+		}
 		copy_errno = errno;
+		closedir(working_dir);
 		fprintf(stderr, "Error changing directory");
 		return -copy_errno;
 	}
@@ -143,13 +159,15 @@ int recursive_check(char *inputPath)
 			count += ret_val;
 		} else {
 			// error happened, return error code
+			closedir(working_dir);
 			return ret_val;
 		}
 	}
 
 	// errno changed, meaning readdir failed
-	if (errno != 0) {
+	if (errno != 0 && errno != EACCES) {
 		copy_errno = errno;
+		closedir(working_dir);
 		fprintf(stderr,"Error reading from file");
 		return -copy_errno;
 	}
@@ -157,7 +175,12 @@ int recursive_check(char *inputPath)
 	// done counting amount of regular files in this dir
 	// change directory to parent and check for errors
 	if (chdir("../") == -1) {
+		if(errno == EACCES) {
+			closedir(working_dir);
+			return 0;
+		}
 		copy_errno = errno;
+		closedir(working_dir);
 		fprintf(stderr, "Error changing directory");
 		return -copy_errno;
 	}
