@@ -21,8 +21,6 @@ name: Micah Wagner
     <arg1> is not.
 **********************************************************************/
 
-extern char **environ;
-
 
 int main(int argc, char *argv[])
 {
@@ -45,19 +43,20 @@ int main(int argc, char *argv[])
 	pipe(fd);
 	rdr = fd[0]; wtr = fd[1];
 	if (fork()) {
-		close(rdr);
-		close(1);
-		dup(wtr); close(wtr);
-		execve(argv[1], left, environ);
-	} else {
-
+		
 		close(wtr);
 		close(0);
 		dup(rdr); close(rdr);
-		execve(right[0], right, environ);
+		execvp(right[0], right);
+
+	} else {
+
+		close(rdr);
+		close(1);
+		dup(wtr); close(wtr);
+		execvp(argv[1], left);
 	}
 
-	/* code */
 	return 0;
 }
 
