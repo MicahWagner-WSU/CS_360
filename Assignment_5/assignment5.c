@@ -20,20 +20,20 @@ void philosopher_begin_dinner(int phil_id, struct sembuf **phil_choices, int sem
 
 int main(int argc, char *argv[]){
 
-	struct sembuf pick_up_chops1[2] = {{0, -1, 0}, {1, -1, 0}};
-	struct sembuf put_down_chops1[2] = {{0, 1, 0}, {1, 1, 0}};
+	struct sembuf pick_up_chops1[2] = {{0, 1, 0}, {1, 1, 0}};
+	struct sembuf put_down_chops1[2] = {{0, -1, 0}, {1, -1, 0}};
 
-	struct sembuf pick_up_chops2[2] = {{1, -1, 0}, {2, -1, 0}};
-	struct sembuf put_down_chops2[2] = {{1, 1, 0}, {2, 1, 0}};
+	struct sembuf pick_up_chops2[2] = {{1, 1, 0}, {2, 1, 0}};
+	struct sembuf put_down_chops2[2] = {{1, -1, 0}, {2, -1, 0}};
 
-	struct sembuf pick_up_chops3[2] = {{2, -1, 0}, {3, -1, 0}};
-	struct sembuf put_down_chops3[2] = {{2, 1, 0}, {3, 1, 0}};
+	struct sembuf pick_up_chops3[2] = {{2, 1, 0}, {3, 1, 0}};
+	struct sembuf put_down_chops3[2] = {{2, -1, 0}, {3, -1, 0}};
 
-	struct sembuf pick_up_chops4[2] = {{3, -1, 0}, {4, -1, 0}};
-	struct sembuf put_down_chops4[2] = {{3, 1, 0}, {4, 1, 0}};
+	struct sembuf pick_up_chops4[2] = {{3, 1, 0}, {4, 1, 0}};
+	struct sembuf put_down_chops4[2] = {{3, -1, 0}, {4, -1, 0}};
 
-	struct sembuf pick_up_chops5[2] = {{4, -1, 0}, {0, -1, 0}};
-	struct sembuf put_down_chops5[2] = {{4, 1, 0}, {0, 1, 0}};
+	struct sembuf pick_up_chops5[2] = {{4, 1, 0}, {0, 1, 0}};
+	struct sembuf put_down_chops5[2] = {{4, -1, 0}, {0, -1, 0}};
 
 	int sem_ID = semget(IPC_PRIVATE, 5, IPC_CREAT | IPC_EXCL | 0600);
 
@@ -91,7 +91,7 @@ void philosopher_begin_dinner(int phil_id, struct sembuf **phil_choices, int sem
 		total_time += time_to_think;
 
 		int time_to_eat = randomGaussian(9, 3);
-		if(time_to_eat) time_to_eat = 0;
+		if(time_to_eat < 0) time_to_eat = 0;
 		semop(sem_ID, phil_choices[phil_id], 2);
 
 		printf("Philospher %d eating for %d\n", phil_id, time_to_eat);
