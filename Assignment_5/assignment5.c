@@ -75,6 +75,9 @@ int main(int argc, char *argv[]){
 	int status;
 	while (wait(&status) != -1);
 
+	/* close semiphores */
+	semctl(sem_ID, 0, IPC_RMID);
+
 	return 0;
 }
 
