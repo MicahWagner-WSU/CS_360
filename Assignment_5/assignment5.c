@@ -45,7 +45,7 @@ int main(int argc, char *argv[]){
 	};
 
 	/* create semiphores */
-	int sem_ID = semget(IPC_PRIVATE, 5, IPC_CREAT | IPC_EXCL | 0600);
+	int sem_ID = semget(IPC_PRIVATE, PHIL_COUNT, IPC_CREAT | IPC_EXCL | 0600);
 
 	if (sem_ID == -1) {
 		errno_copy = errno;
