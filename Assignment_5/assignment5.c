@@ -73,8 +73,8 @@ int main(int argc, char *argv[]){
 				struct timespec time_seed;
 				clock_gettime(CLOCK_MONOTONIC, &time_seed);
 				srand(time_seed.tv_nsec);
-				philosopher_begin_dinner(i, sem_ID);
-				return 0;
+				int phil_status = philosopher_begin_dinner(i, sem_ID);
+				return phil_status;
 
 			/* we are parent, so continue forking */
 			default:
