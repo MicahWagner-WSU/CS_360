@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <string.h>
 #define PHIL_COUNT 5
+#define EAT_TIME 100
 
 /* successive calls to randomGaussian produce integer return values */
 /* having a gaussian distribution with the given mean and standard  */
@@ -33,6 +34,7 @@ int main(int argc, char *argv[]){
 	/* 
 	 * create sembufs to set the dinner table 
 	 * (initialize semiphores to 1, like puting down the chopsticks) 
+	 * URGENT: FIX THIS SO THAT YOU USE SETALL
 	 */
 	struct sembuf set_table[5] = {
 		{0, 1, 0},
@@ -116,11 +118,11 @@ int philosopher_begin_dinner(int phil_id, int sem_ID) {
 	 * putting down will increment the chopstick count for the left and right chopstick 
 	 * ensure philosophers share one left and right chopstick with another philosopher 
 	 */
-	struct sembuf pick_up_chops[2] = {{phil_id, -1, 0}, {(phil_id + 1) % 5, -1, 0}};
-	struct sembuf put_down_chops[2] = {{phil_id, 1, 0}, {(phil_id + 1) % 5, 1, 0}};
+	struct sembuf pick_up_chops[2] = {{phil_id, -1, 0}, {(phil_id + 1) % PHIL_COUNT, -1, 0}};
+	struct sembuf put_down_chops[2] = {{phil_id, 1, 0}, {(phil_id + 1) % PHIL_COUNT, 1, 0}};
 
 	/* loop until philosphers are done eating */
-	while(eat_time < 100) {
+	while(eat_time < EAT_TIME) {
 
 		/* set time to think, then sleep for that time */
 		int time_to_think = randomGaussian(11, 7);
