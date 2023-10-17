@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <sys/wait.h>
+#include <string.h>
 #define PHIL_COUNT 5
 
 /* successive calls to randomGaussian produce integer return values */
@@ -18,14 +19,16 @@ int randomGaussian(int mean, int stddev);
  * this function will be ran for each child process (each philosopher)
  * we will pass in the philosopher id, 
  * the possible choices the philosopher can make, and the sem_ID
+ * returns and integer indicating errno
  */
-void philosopher_begin_dinner(int phil_id, int sem_ID);
+int philosopher_begin_dinner(int phil_id, int sem_ID);
 
 /*
  * main function that creates all the philosophers (forks 5 children)
  */
 int main(int argc, char *argv[]){
 
+	int errno_copy;
 
 	/* 
 	 * create sembufs to set the dinner table 
@@ -42,10 +45,19 @@ int main(int argc, char *argv[]){
 	/* create semiphores */
 	int sem_ID = semget(IPC_PRIVATE, 5, IPC_CREAT | IPC_EXCL | 0600);
 
-	/* set the dinner table */
-	semop(sem_ID, set_table, 5);
+	if (sem_ID == -1) {
+		errno_copy = errno;
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
 
-	int errno_copy;
+	} 
+
+	/* set the dinner table */
+	if (semop(sem_ID, set_table, 5) == -1) {
+		errno_copy = errno;
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	/* Loop and fork 5 new children */
 	for (int i = 0; i < PHIL_COUNT; i++) {
@@ -54,7 +66,7 @@ int main(int argc, char *argv[]){
 			/* check if fork failed*/
 			case -1:
 				errno_copy = errno;
-				perror("ERROR");
+				fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
 				return errno_copy;
 			/* we are a philosopher, produce a random seed and begin dinner*/
 			case 0:
@@ -73,19 +85,30 @@ int main(int argc, char *argv[]){
 
 	/* wait on children */
 	int status;
-	while (wait(&status) != -1);
+	while (wait(&status) != -1) {
+		if (status != 0) {
+			errno_copy = errno;
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
+	}
 
 	/* close semiphores */
-	semctl(sem_ID, 0, IPC_RMID);
+	if (semctl(sem_ID, 0, IPC_RMID) == -1) {
+		errno_copy = errno;
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	return 0;
 }
 
-void philosopher_begin_dinner(int phil_id, int sem_ID) {
+int philosopher_begin_dinner(int phil_id, int sem_ID) {
 
 	int cycles = 0;
 	int think_time = 0;
 	int eat_time = 0;
+	int errno_copy = 0;
 
 	/* 
 	 * create sembufs to pick up and put down chopsticks for each philosopher 
@@ -109,7 +132,13 @@ void philosopher_begin_dinner(int phil_id, int sem_ID) {
 		/* set time to eat, perform semop to pick up both chopsticks */
 		int time_to_eat = randomGaussian(9, 3);
 		if(time_to_eat < 0) time_to_eat = 0;
-		semop(sem_ID, pick_up_chops, 2);
+
+
+		if (semop(sem_ID, pick_up_chops, 2) == -1) {
+			errno_copy = errno;
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
 
 		/* sleep to simulate eat time */
 		printf("Philospher %d eating for %d seconds (total = %d)\n", phil_id, time_to_eat, eat_time);
@@ -117,12 +146,19 @@ void philosopher_begin_dinner(int phil_id, int sem_ID) {
 		eat_time += time_to_eat;
 
 		/* done eating, put chopsticks back down */
-		semop(sem_ID, put_down_chops, 2);
+
+		if (semop(sem_ID, put_down_chops, 2) == -1) {
+			errno_copy = errno;
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
+
 
 		cycles++;
 	}
 
 	printf("Philospher %d done with meal. Thought for %d seconds, ate for %d seconds over %d cylces \n", phil_id, think_time, eat_time, cycles);
+	return 0;
 
 }
 
