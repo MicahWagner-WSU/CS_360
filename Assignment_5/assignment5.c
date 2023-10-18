@@ -11,6 +11,18 @@
 #define PHIL_COUNT 5
 #define EAT_TIME 100
 
+/* 
+ * semun union structure used with semctl when setting the value for all semiphores 
+ * this union structure was directly taken from the man page for semctl 
+ */
+union semun {
+	int              val;    /* Value for SETVAL */
+	struct semid_ds *buf;    /* Buffer for IPC_STAT, IPC_SET */
+	unsigned short  *array;  /* Array for GETALL, SETALL */
+	struct seminfo  *__buf;  /* Buffer for IPC_INFO
+				 (Linux-specific) */
+};
+
 /* successive calls to randomGaussian produce integer return values */
 /* having a gaussian distribution with the given mean and standard  */
 /* deviation.  Return values may be negative.                       */
@@ -24,25 +36,19 @@ int randomGaussian(int mean, int stddev);
  */
 int philosopher_begin_dinner(int phil_id, int sem_ID);
 
+
+/* 
+ * this will set all the semiphores correlated with sem_ID to 1
+ * this function returns any changes to errno
+ */
+int set_table(int sem_ID);
+
 /*
  * main function that creates all the philosophers (forks 5 children)
  */
 int main(int argc, char *argv[]){
 
 	int errno_copy;
-
-	/* 
-	 * create sembufs to set the dinner table 
-	 * (initialize semiphores to 1, like puting down the chopsticks) 
-	 * URGENT: FIX THIS SO THAT YOU USE SETALL
-	 */
-	struct sembuf set_table[5] = {
-		{0, 1, 0},
-		{1, 1, 0},
-		{2, 1, 0},
-		{3, 1, 0},
-		{4, 1, 0}
-	};
 
 	/* create semiphores */
 	int sem_ID = semget(IPC_PRIVATE, PHIL_COUNT, IPC_CREAT | IPC_EXCL | 0600);
@@ -51,17 +57,16 @@ int main(int argc, char *argv[]){
 		errno_copy = errno;
 		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
 		return errno_copy;
-
 	} 
 
-	/* set the dinner table */
-	if (semop(sem_ID, set_table, 5) == -1) {
-		errno_copy = errno;
-		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+	/* 
+	 * create sembufs to set the dinner table 
+	 * initialize semiphores to 1, like puting down the chopsticks
+	 */
+	if ((errno_copy = set_table(sem_ID)) != 0)
 		return errno_copy;
-	}
 
-	/* Loop and fork 5 new children */
+	/* Loop and fork new children */
 	for (int i = 0; i < PHIL_COUNT; i++) {
 
 		switch (fork()) {
@@ -122,11 +127,11 @@ int philosopher_begin_dinner(int phil_id, int sem_ID) {
 	struct sembuf put_down_chops[2] = {{phil_id, 1, 0}, {(phil_id + 1) % PHIL_COUNT, 1, 0}};
 
 	/* loop until philosphers are done eating */
-	while(eat_time < EAT_TIME) {
+	while (eat_time < EAT_TIME) {
 
 		/* set time to think, then sleep for that time */
 		int time_to_think = randomGaussian(11, 7);
-		if(time_to_think < 0) time_to_think = 0;
+		if (time_to_think < 0) time_to_think = 0;
 		printf("Philospher %d thinking for %d seconds (total = %d)\n", phil_id, time_to_think, think_time);
 		sleep(time_to_think);
 		think_time += time_to_think;
@@ -162,6 +167,39 @@ int philosopher_begin_dinner(int phil_id, int sem_ID) {
 	printf("Philospher %d done with meal. Thought for %d seconds, ate for %d seconds over %d cylces \n", phil_id, think_time, eat_time, cycles);
 	return 0;
 
+}
+
+int set_table(int sem_ID) {
+
+	struct semid_ds ds;
+	union semun arg;
+	int errno_copy;
+
+	/* get size of semiphore set*/
+
+	arg.buf = &ds;
+
+	if (semctl(sem_ID, 0, IPC_STAT, arg) == -1) {
+		errno_copy = errno;
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
+
+	/* initialize array of values and initialize semiphores*/
+
+	arg.array = calloc(ds.sem_nsems, sizeof(arg.array[0]));
+
+	for (int i = 0; i < ds.sem_nsems; i++) {
+		arg.array[i] = 1;
+	}
+
+	if (semctl(sem_ID, 0, SETALL, arg) == -1) {
+		errno_copy = errno;
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
+
+	return 0;
 }
 
 /* successive calls to randomGaussian produce integer return values */
