@@ -50,7 +50,7 @@ int main(int argc, char *argv[]){
 		pthread_mutex_init(&table[i], NULL);
 	}
 
-	pthread_t *phil_threads = calloc(PHIL_COUNT, sizeof(pthread_t));
+	pthread_t phil_threads[PHIL_COUNT];
 
 	for (int i = 0; i < PHIL_COUNT; i++) {
 
@@ -115,6 +115,28 @@ int philosopher_begin_dinner(void *info) {
 	return 0;
 
 }
+
+
+// have some array of status that contains whether the philisophys are hungry, eating, or thinking
+// hungry status is essentially just waiting to eat, so you cant think while being hungry
+// set only one main mutex
+// also have conditional variables for every philosopher in the table
+// initially set satus of all philosophers to thinking
+// ADJUST MAIN PHILOSOPHER SCRIPT
+//	set main while loop (already there)
+//	start thinking at random time (guarenteed to be thinking)
+//	attempt to pick up chop sticks (call pick up chopsticks)
+//	wait for time to eat
+//	call put back function
+// WRITE A FUNCTION THAT SIMULATES PICKING UP CHOPSTICKS TO EAT
+//	lock a mutex, set yourself to hungry (cant think while hungry)
+//	while (either adjacent philosophers are eating){ conditionally wait in loop }
+// 	outside loop, set us to eat, then unlock
+// WRITE A FUNCTION THAT SIMULATES PUTTING BACK CHOPSTICKS
+//	lock mutex, set yourself to thinking
+//	after done eating, check if either philosopher is hungery, then set signal to which ever one is
+//	after checking both adjacent philosophers, unlock mutex
+
 
 // int *init_table(int phil_amount) {
 	
