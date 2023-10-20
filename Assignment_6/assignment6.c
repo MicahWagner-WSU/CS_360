@@ -10,10 +10,12 @@
 #define EAT_TIME 100
 
 
-
 struct phil_info {
 	int phil_id;
-	pthread_mutex_t *table;
+	int phil_count;
+	int *chops;
+	pthread_mutex_t *mtx;
+	pthread_cond_t *cv;
 };
 
 /* successive calls to randomGaussian produce integer return values */
@@ -29,13 +31,22 @@ int randomGaussian(int mean, int stddev);
 int philosopher_begin_dinner(void *phil_info);
 
 /*
- * this function will allocate space for each chopstick on the heap
- * given the philosopher count, we will make a table with 
- * as many chopsticks as philosophers
- *
- * return pointer to the chopstick array
+ * this function call simulates a decrement semop operation (wait equivelent)
+ * it takes in the philosopher information, and will 
+ * attempt to pick up the chopsticks if available
+ * 
+ * returns error status if an error occurs
  */
-// int *init_table(int phil_amount);
+int pick_up_chops(struct phil_info *);
+
+/*
+ * this function call simulates an increment semop operation (signal equivelent)
+ * it takes in the philosopher information, and will 
+ * attempt to put down the chopsticks if available
+ * 
+ * returns error status if an error occurs
+ */
+int put_down_chops(struct phil_info *);
 
 /*
  * main function that creates all the philosophers (creates 5 new threads)
@@ -43,28 +54,47 @@ int philosopher_begin_dinner(void *phil_info);
 int main(int argc, char *argv[]){
 
 	int errno_copy;
+	int phil_count = PHIL_COUNT;
 
-	pthread_mutex_t *table = calloc(PHIL_COUNT, sizeof(pthread_mutex_t));
+	pthread_mutex_t *lock = calloc(1, sizeof(pthread_mutex_t));
+	pthread_mutex_init(lock, NULL);
 
-	for (int i = 0; i < PHIL_COUNT; i++) {
-		pthread_mutex_init(&table[i], NULL);
+	pthread_cond_t *cv = calloc(1, sizeof(pthread_cond_t));
+
+	pthread_cond_init(cv, NULL);
+
+	int *chopsticks = calloc(phil_count, sizeof(int));
+
+	/* 
+	 * set chopstick values to 1 initially 
+	 * one means the chopsticks are present
+	 * initially, the table has all the chopsticks present
+	 */
+	for(int i = 0; i < phil_count; i++) {
+		chopsticks[i] = 1;
 	}
 
-	pthread_t phil_threads[PHIL_COUNT];
+	pthread_t phil_threads[phil_count];
 
-	for (int i = 0; i < PHIL_COUNT; i++) {
+	for (int i = 0; i < phil_count; i++) {
 
+		/* create the philosopher information to pass to each thread*/
 		struct phil_info *info = malloc(sizeof(struct phil_info));
 
 		info->phil_id = i;
-		info->table = table;
+		info->phil_count = phil_count;
+		info->chops = chopsticks;
+		info->mtx = lock;
+		info->cv = cv;
+
 
 		/* maybe put in thread function, not sure */
+		/* set random seed */
 		struct timespec time_seed;
 		clock_gettime(CLOCK_MONOTONIC, &time_seed);
 		srand(time_seed.tv_nsec);
 
-		phil_threads[i] = pthread_create(
+		pthread_create(
 			&phil_threads[i], 
 			NULL, 
 			(void *) philosopher_begin_dinner, 
@@ -72,19 +102,22 @@ int main(int argc, char *argv[]){
 		);
 	}
 
-	for (int i = 0; i < PHIL_COUNT; i++) {
+
+	/* wait until all the threads are done */
+	for (int i = 0; i < phil_count; i++) {
 		pthread_join(phil_threads[i], NULL);
 	}
 
 	return 0;
 }
 
-int philosopher_begin_dinner(void *info) {
+int philosopher_begin_dinner(void *philosopher_info) {
 
 	int cycles = 0;
 	int think_time = 0;
 	int eat_time = 0;
 	int errno_copy = 0;
+	struct phil_info *info = (struct phil_info *)philosopher_info;
 
 
 	/* loop until philosphers are done eating */
@@ -93,56 +126,79 @@ int philosopher_begin_dinner(void *info) {
 		/* set time to think, then sleep for that time */
 		int time_to_think = randomGaussian(11, 7);
 		if (time_to_think < 0) time_to_think = 0;
-		//printf("Philospher %d thinking for %d seconds (total = %d)\n", phil_id, time_to_think, think_time);
+		printf("Philospher %d thinking for %d seconds (total = %d)\n", info->phil_id, time_to_think, think_time);
 		sleep(time_to_think);
 		think_time += time_to_think;
+
+		/* attempt to pick up chopsticks*/
+		pick_up_chops(info);
 
 		/* set time to eat, perform semop to pick up both chopsticks */
 		int time_to_eat = randomGaussian(9, 3);
 		if(time_to_eat < 0) time_to_eat = 0;
-
-
 		/* sleep to simulate eat time */
-		//printf("Philospher %d eating for %d seconds (total = %d)\n", phil_id, time_to_eat, eat_time);
+		printf("Philospher %d eating for %d seconds (total = %d)\n", info->phil_id, time_to_eat, eat_time);
 		sleep(time_to_eat);
 		eat_time += time_to_eat;
 
+		/* put down chopsticks */
+		put_down_chops(info);
 
 		cycles++;
 	}
 
-	//printf("Philospher %d done with meal. Thought for %d seconds, ate for %d seconds over %d cylces \n", phil_id, think_time, eat_time, cycles);
+	printf("Philospher %d done with meal. Thought for %d seconds, ate for %d seconds over %d cylces \n", info->phil_id, think_time, eat_time, cycles);
 	return 0;
 
 }
 
 
-// have some array of status that contains whether the philisophys are hungry, eating, or thinking
-// hungry status is essentially just waiting to eat, so you cant think while being hungry
-// set only one main mutex
-// also have conditional variables for every philosopher in the table
-// initially set satus of all philosophers to thinking
-// ADJUST MAIN PHILOSOPHER SCRIPT
-//	set main while loop (already there)
-//	start thinking at random time (guarenteed to be thinking)
-//	attempt to pick up chop sticks (call pick up chopsticks)
-//	wait for time to eat
-//	call put back function
-// WRITE A FUNCTION THAT SIMULATES PICKING UP CHOPSTICKS TO EAT
-//	lock a mutex, set yourself to hungry (cant think while hungry)
-//	while (either adjacent philosophers are eating){ conditionally wait in loop }
-// 	outside loop, set us to eat, then unlock
-// WRITE A FUNCTION THAT SIMULATES PUTTING BACK CHOPSTICKS
-//	lock mutex, set yourself to thinking
-//	after done eating, check if either philosopher is hungery, then set signal to which ever one is
-//	after checking both adjacent philosophers, unlock mutex
+int pick_up_chops(struct phil_info *info) {
 
+	/* these dont need to be protected, they never change */
+	int phil_id = info->phil_id;
+	int phil_count = info->phil_count;
 
-// int *init_table(int phil_amount) {
-	
-// }
+	/* lock the mutex */
+	pthread_mutex_lock(info->mtx);
 
+	/* if either chopstick isn't available, wait until they are */
+	while (info->chops[phil_id] == 0 ||
+		info->chops[(phil_id + 1) % phil_count] == 0) {
+		pthread_cond_wait(info->cv, info->mtx);
+	}
 
+	/* simulate taking the chopsticks by decrementing the value */
+	info->chops[phil_id]--;
+	info->chops[(phil_id + 1) % phil_count]--;
+
+	/* unlock mutex */
+	pthread_mutex_unlock(info->mtx);
+
+	return 0;
+}
+
+int put_down_chops(struct phil_info *info){
+
+	/* these dont need to be protected, they never change */
+	int phil_id = info->phil_id;
+	int phil_count = info->phil_count;
+
+	/* lock the mutex */
+	pthread_mutex_lock(info->mtx);
+
+	/* simulate putting chopsticks back by incrementing */
+	info->chops[phil_id]++;
+	info->chops[(phil_id + 1) % phil_count]++;
+
+	/* broadcast this info to all philosophers so they can all try to eat */
+	pthread_cond_broadcast(info->cv);
+
+	/* unlock mutex */
+	pthread_mutex_unlock(info->mtx);
+
+	return 0;
+}
 
 /* successive calls to randomGaussian produce integer return values */
 /* having a gaussian distribution with the given mean and standard  */
