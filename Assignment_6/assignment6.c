@@ -57,11 +57,17 @@ int main(int argc, char *argv[]){
 	int phil_count = PHIL_COUNT;
 
 	pthread_mutex_t *lock = calloc(1, sizeof(pthread_mutex_t));
-	pthread_mutex_init(lock, NULL);
+	if ((errno_copy = pthread_mutex_init(lock, NULL)) != 0) {
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	pthread_cond_t *cv = calloc(1, sizeof(pthread_cond_t));
 
-	pthread_cond_init(cv, NULL);
+	if ((errno_copy = pthread_cond_init(cv, NULL)) != 0) {
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	int *chopsticks = calloc(phil_count, sizeof(int));
 
@@ -94,19 +100,33 @@ int main(int argc, char *argv[]){
 		clock_gettime(CLOCK_MONOTONIC, &time_seed);
 		srand(time_seed.tv_nsec);
 
-		pthread_create(
+		int errno_copy = pthread_create(
 			&phil_threads[i], 
 			NULL, 
 			(void *) philosopher_begin_dinner, 
 			(void *) info
 		);
+
+		if (errno_copy != 0) {
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
 	}
 
 
 	/* wait until all the threads are done */
 	for (int i = 0; i < phil_count; i++) {
-		pthread_join(phil_threads[i], NULL);
+		if((errno_copy = pthread_join(phil_threads[i], NULL)) != 0) {
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
 	}
+
+	pthread_mutex_destroy(lock);
+	pthread_cond_destroy(cv);
+	free(chopsticks);
+	free(lock);
+	free(cv);
 
 	return 0;
 }
@@ -131,7 +151,10 @@ int philosopher_begin_dinner(void *philosopher_info) {
 		think_time += time_to_think;
 
 		/* attempt to pick up chopsticks*/
-		pick_up_chops(info);
+		if ((errno_copy = pick_up_chops(info)) != 0) {
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
 
 		/* set time to eat, perform semop to pick up both chopsticks */
 		int time_to_eat = randomGaussian(9, 3);
@@ -142,12 +165,16 @@ int philosopher_begin_dinner(void *philosopher_info) {
 		eat_time += time_to_eat;
 
 		/* put down chopsticks */
-		put_down_chops(info);
+		if ((errno_copy = put_down_chops(info)) != 0) {
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
 
 		cycles++;
 	}
 
 	printf("Philospher %d done with meal. Thought for %d seconds, ate for %d seconds over %d cylces \n", info->phil_id, think_time, eat_time, cycles);
+	free(philosopher_info);
 	return 0;
 
 }
@@ -158,14 +185,21 @@ int pick_up_chops(struct phil_info *info) {
 	/* these dont need to be protected, they never change */
 	int phil_id = info->phil_id;
 	int phil_count = info->phil_count;
+	int errno_copy = 0;
 
 	/* lock the mutex */
-	pthread_mutex_lock(info->mtx);
+	if ((errno_copy = pthread_mutex_lock(info->mtx)) != 0) {
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	/* if either chopstick isn't available, wait until they are */
 	while (info->chops[phil_id] == 0 ||
 		info->chops[(phil_id + 1) % phil_count] == 0) {
-		pthread_cond_wait(info->cv, info->mtx);
+		if ((errno_copy = pthread_cond_wait(info->cv, info->mtx)) != 0) {
+			fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+			return errno_copy;
+		}
 	}
 
 	/* simulate taking the chopsticks by decrementing the value */
@@ -173,7 +207,10 @@ int pick_up_chops(struct phil_info *info) {
 	info->chops[(phil_id + 1) % phil_count]--;
 
 	/* unlock mutex */
-	pthread_mutex_unlock(info->mtx);
+	if ((errno_copy = pthread_mutex_unlock(info->mtx)) != 0) {
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	return 0;
 }
@@ -183,19 +220,29 @@ int put_down_chops(struct phil_info *info){
 	/* these dont need to be protected, they never change */
 	int phil_id = info->phil_id;
 	int phil_count = info->phil_count;
+	int errno_copy = 0;
 
 	/* lock the mutex */
-	pthread_mutex_lock(info->mtx);
+	if ((errno_copy = pthread_mutex_lock(info->mtx)) != 0) {
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	/* simulate putting chopsticks back by incrementing */
 	info->chops[phil_id]++;
 	info->chops[(phil_id + 1) % phil_count]++;
 
 	/* broadcast this info to all philosophers so they can all try to eat */
-	pthread_cond_broadcast(info->cv);
+	if ((errno_copy = pthread_cond_broadcast(info->cv)) != 0) {
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	/* unlock mutex */
-	pthread_mutex_unlock(info->mtx);
+	if ((errno_copy = pthread_mutex_unlock(info->mtx)) != 0) {
+		fprintf(stderr, "ERRNO %d: %s \n", errno_copy, strerror(errno_copy));
+		return errno_copy;
+	}
 
 	return 0;
 }
