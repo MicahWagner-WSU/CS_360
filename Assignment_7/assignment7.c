@@ -1,5 +1,6 @@
 #include "assignment7.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <pthread.h>
 
@@ -9,6 +10,7 @@ typedef struct _sortParams {
     char** array;
     int left;
     int right;
+    pthread_mutex_t *mtx;
 } SortParams;
 
 static int maximumThreads;              /* maximum # of threads to be used */
@@ -39,6 +41,11 @@ static void quickSort(void* p) {
     int left = params->left;
     int right = params->right;
     int i = left, j = right;
+
+    pthread_t thread1;
+    pthread_t thread2;
+
+
     
     if (j - i > SORT_THRESHOLD) {           /* if the sort range is substantial, use quick sort */
 
@@ -66,11 +73,38 @@ static void quickSort(void* p) {
                 i++; j--;
             } else break;                   /* if i > j, this partitioning is done  */
         }
-        
+
+        pthread_mutex_lock(params->mtx);
+        if (maximumThreads > 0 ) {
+
+            SortParams *first = malloc(sizeof(SortParams)); 
+            first->array = array; 
+            first->left = left; 
+            first->right = j;
+            first->mtx = params->mtx;
+
+            SortParams second; second.array = array; second.left = i; second.right = right;
+            second.mtx = params->mtx;
+
+            maximumThreads--;
+            pthread_mutex_unlock(params->mtx);
+            pthread_create(&thread1, NULL, (void *) quickSort, (void *) first);
+
+            quickSort(&second);                 /* sort the right partition */
+            pthread_join(thread1, NULL);
+            return;
+        }
+        pthread_mutex_unlock(params->mtx);
+
+
         SortParams first;  first.array = array; first.left = left; first.right = j;
+        first.mtx = params->mtx;
+
         quickSort(&first);                  /* sort the left partition  */
         
         SortParams second; second.array = array; second.left = i; second.right = right;
+        second.mtx = params->mtx;
+        
         quickSort(&second);                 /* sort the right partition */
                 
     } else insertSort(array,i,j);           /* for a small range use insert sort */
@@ -85,7 +119,9 @@ void setSortThreads(int count) {
 /* user callable sort procedure, sorts array of count strings, beginning at address array */
 
 void sortThreaded(char** array, unsigned int count) {
-    SortParams parameters;
-    parameters.array = array; parameters.left = 0; parameters.right = count - 1;
-    quickSort(&parameters);
+    SortParams *parameters = malloc(sizeof(SortParams));
+    parameters->array = array; parameters->left = 0; parameters->right = count - 1;
+    parameters->mtx = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(parameters->mtx, NULL);
+    quickSort(parameters);
 }

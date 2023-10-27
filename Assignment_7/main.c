@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
 
 	clock_t time = clock();
 
-	setSortThreads(1);
+	setSortThreads(5);
 	sortThreaded(words, word_count);
 
 	printf("time ran: %f seconds \n", (double)(clock() - time) / CLOCKS_PER_SEC);
