@@ -11,6 +11,7 @@ typedef struct _sortParams {
     int left;
     int right;
     pthread_mutex_t *mtx;
+    int threads_left;
 } SortParams;
 
 static int maximumThreads;              /* maximum # of threads to be used */
@@ -41,6 +42,7 @@ static void quickSort(void* p) {
     int left = params->left;
     int right = params->right;
     int i = left, j = right;
+    int threads_left = params->threads_left;
 
     pthread_t thread1;
     pthread_t thread2;
@@ -74,36 +76,32 @@ static void quickSort(void* p) {
             } else break;                   /* if i > j, this partitioning is done  */
         }
 
-        pthread_mutex_lock(params->mtx);
-        if (maximumThreads > 0 ) {
+        if (threads_left > 0 ) {
 
             SortParams *first = malloc(sizeof(SortParams)); 
             first->array = array; 
             first->left = left; 
             first->right = j;
-            first->mtx = params->mtx;
+            first->threads_left = threads_left - 1;
 
             SortParams second; second.array = array; second.left = i; second.right = right;
-            second.mtx = params->mtx;
+            second.threads_left = 0;
 
-            maximumThreads--;
-            pthread_mutex_unlock(params->mtx);
             pthread_create(&thread1, NULL, (void *) quickSort, (void *) first);
 
             quickSort(&second);                 /* sort the right partition */
             pthread_join(thread1, NULL);
             return;
         }
-        pthread_mutex_unlock(params->mtx);
 
 
         SortParams first;  first.array = array; first.left = left; first.right = j;
-        first.mtx = params->mtx;
+        first.threads_left = 0;
 
         quickSort(&first);                  /* sort the left partition  */
         
         SortParams second; second.array = array; second.left = i; second.right = right;
-        second.mtx = params->mtx;
+        second.threads_left = 0;
         
         quickSort(&second);                 /* sort the right partition */
                 
@@ -121,6 +119,7 @@ void setSortThreads(int count) {
 void sortThreaded(char** array, unsigned int count) {
     SortParams *parameters = malloc(sizeof(SortParams));
     parameters->array = array; parameters->left = 0; parameters->right = count - 1;
+    parameters->threads_left = maximumThreads;
     parameters->mtx = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(parameters->mtx, NULL);
     quickSort(parameters);
