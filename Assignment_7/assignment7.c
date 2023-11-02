@@ -1,6 +1,5 @@
 #include "assignment7.h"
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <pthread.h>
 
@@ -10,7 +9,6 @@ typedef struct _sortParams {
     char** array;
     int left;
     int right;
-    pthread_mutex_t *mtx;
     int threads_left;
 } SortParams;
 
@@ -76,25 +74,31 @@ static void quickSort(void* p) {
             } else break;                   /* if i > j, this partitioning is done  */
         }
 
+        // check if we have available threads to distrisbute computation
         if (threads_left > 0 ) {
 
+            // we can make more threads, allocate parameters on the heap
             SortParams *first = malloc(sizeof(SortParams)); 
             first->array = array; 
             first->left = left; 
             first->right = j;
+            // decrement available amount of threads, this wont run in parallel so we dont need a mutex
             first->threads_left = threads_left - 1;
 
+            // run quicksort on the other partition in parallel, we dont need the heap
             SortParams second; second.array = array; second.left = i; second.right = right;
             second.threads_left = 0;
 
+            // create a new thread
             pthread_create(&thread1, NULL, (void *) quickSort, (void *) first);
 
             quickSort(&second);                 /* sort the right partition */
             pthread_join(thread1, NULL);
+            free(first);
             return;
         }
 
-
+        // no more available threads, run how normal quicksort should run
         SortParams first;  first.array = array; first.left = left; first.right = j;
         first.threads_left = 0;
 
@@ -117,10 +121,9 @@ void setSortThreads(int count) {
 /* user callable sort procedure, sorts array of count strings, beginning at address array */
 
 void sortThreaded(char** array, unsigned int count) {
-    SortParams *parameters = malloc(sizeof(SortParams));
-    parameters->array = array; parameters->left = 0; parameters->right = count - 1;
-    parameters->threads_left = maximumThreads;
-    parameters->mtx = malloc(sizeof(pthread_mutex_t));
-    pthread_mutex_init(parameters->mtx, NULL);
-    quickSort(parameters);
+    SortParams parameters;
+    parameters.array = array; parameters.left = 0; parameters.right = count - 1;
+    // set initial maximumThreads, dont need mutex since we never access this variable in parallel
+    parameters.threads_left = maximumThreads;
+    quickSort(&parameters);
 }
