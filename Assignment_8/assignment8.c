@@ -52,7 +52,7 @@ void run_client(const char *hostname) {
 }
 
 void run_server() {
-	int listen_fd, connection_fd, length;
+	int listen_fd, connection_fd, length, clients_connected;
 	struct sockaddr_in server_address, client_address;
 
 	listen_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -69,10 +69,12 @@ void run_server() {
 	listen(listen_fd, 1);
 
 	length = sizeof(struct sockaddr_in);
+	clients_connected = 0;
 	for(;;) {
 		while(waitpid(-1, NULL, WNOHANG) > 0);
 
 		connection_fd = accept(listen_fd, (struct sockaddr *) &client_address, (socklen_t *) &length);
+		clients_connected++;
 
 		if(fork()) {
 			close(connection_fd);
@@ -91,6 +93,6 @@ void run_server() {
 			0,
 			NI_NUMERICSERV);
 
-		printf("%s %d\n", client_name, );
+		printf("%s %d\n", client_name, clients_connected);
 	}
 }
