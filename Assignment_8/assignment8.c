@@ -65,7 +65,7 @@ void run_client(const char *hostname) {
 	int socket_fd, num_read, tmp_errno;
 	struct addrinfo hints, *actual_data;
 	char port_string[NI_MAXSERV] = { 0 };
-	char buff[DATE_SIZE] = { 0 };
+	char buff[DATE_SIZE + 1] = { 0 };
 	
 	memset(&hints, 0, sizeof(hints));
 	int err;
@@ -204,7 +204,7 @@ void run_server() {
 
 		time_t current_time;
 		time(&current_time);
-		
+
 		/* write date to connected client */
 		if ( write(connection_fd, ctime(&current_time), DATE_SIZE) == -1) {
 			tmp_errno = errno;
