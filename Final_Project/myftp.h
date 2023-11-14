@@ -10,5 +10,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
+#include <limits.h>
+
 #define MY_PORT_NUMBER 49999
 #define BACKLOG 4
+
+#define MAX_ARG_LENGTH 4 + PATH_MAX
