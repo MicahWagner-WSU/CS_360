@@ -30,8 +30,8 @@ int main(int argc, char **argv) {
 	printf("MFTP> ");
 	fflush(stdout);
 
-	while (1) {
-		if ((actual = read(1, buff, MAX_ARG_LENGTH)) == -1) {
+	while ((actual = read(0, buff, MAX_ARG_LENGTH)) > 0) {
+		if (actual == -1) {
 			tmp_errno = errno;
 			perror("Error: ");
 			exit(errno);
