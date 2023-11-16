@@ -2,11 +2,15 @@
 
 int establish_client_connection(char *hostname);
 
+
+
 /*
 
 things to do:
 
-- make a clean error handle function
+- make a clean error handle function (later)
+- handle the EOF case 
+- make sure you terminate commands with new line
 - create a seperate function for parsing input
 	- either create a function for each individual command *
 	- or create a function that raps the whole token parsing 
@@ -49,7 +53,7 @@ int main(int argc, char **argv) {
 			// stub for commands
 			// anything in here is just for testing / getting used to things
 			if(strcmp(args, "exit") == 0)
-				write(socket_fd, "Q", 1);
+				write(socket_fd, "Q\n", 2);
 				read(socket_fd, &ack, 1);
 				if(strcmp(ack, "A") == 0)
 					exit(0);
