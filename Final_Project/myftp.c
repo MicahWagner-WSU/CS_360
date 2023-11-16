@@ -8,6 +8,8 @@ things to do:
 
 - make a clean error handle function
 - create a seperate function for parsing input
+	- either create a function for each individual command *
+	- or create a function that raps the whole token parsing 
 - create generic function that spins up new socket (used for data connection)
 - also create generic function to close a socket
 
@@ -37,10 +39,35 @@ int main(int argc, char **argv) {
 			exit(errno);
 		}
 
-		buff[actual] = '\0';
+		buff[actual - 1] = '\0';
+
 
 		args = strtok(buff, " ");
 		while (args != NULL) {
+			char ack[2] = {0};
+
+			// stub for commands
+			// anything in here is just for testing / getting used to things
+			if(strcmp(args, "exit") == 0)
+				write(socket_fd, "Q", 1);
+				read(socket_fd, &ack, 1);
+				if(strcmp(ack, "A") == 0)
+					exit(0);
+			if(strcmp(args, "cd") == 0)
+				return 0;
+			if(strcmp(args, "rcd") == 0)
+				return 0;
+			if(strcmp(args, "ls") == 0)
+				return 0;
+			if(strcmp(args, "rls") == 0)
+				return 0;
+			if(strcmp(args, "get") == 0)
+				return 0;
+			if(strcmp(args, "show") == 0)
+				return 0;
+			if(strcmp(args, "put") == 0)
+				return 0;
+
 			printf("%s\n", args);
 			fflush(stdout);
 			args = strtok(NULL, " ");
