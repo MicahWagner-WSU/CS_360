@@ -138,7 +138,7 @@ char *get_input_line(int file_desc, int buf_size) {
 	while((actual = read(file_desc, buff, buf_size)) > 0) {
 
 		for (int i = 0; i < actual; i++) {
-			if (buff[i] == '\n') {
+			if (buff[i] == '\n' || i > MAX_ARG_LENGTH + 1) {
 				memcpy(&final[total_read], buff, buf_size);
 				final[(total_read + actual) - 1] = '\0';
 				return final;
