@@ -46,11 +46,9 @@ int main(int argc, char **argv) {
 
 		//should quit in here
 		if (input == NULL) {
-
+			free(input);
 			return 0;
 		}
-
-		printf("%s\n",  input);
 
 		args = strtok(input, " ");
 		while (args != NULL) {
@@ -61,8 +59,10 @@ int main(int argc, char **argv) {
 			if(strcmp(args, "exit") == 0) {
 				write(socket_fd, "Q\n", 2);
 				read(socket_fd, &ack, 1);
-				if(strcmp(ack, "A") == 0)
+				if(strcmp(ack, "A") == 0) {
+					free(input);
 					exit(0);
+				}
 			}
 			if(strcmp(args, "cd") == 0)
 				return 0;
@@ -85,6 +85,7 @@ int main(int argc, char **argv) {
 	
 		printf("MFTP> ");
 		fflush(stdout);
+		free(input);
 	}
 }
 
