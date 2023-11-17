@@ -35,14 +35,14 @@ int main(int argc, char **argv) {
 
 		if(connection_fd == -1) {
 			tmp_errno = errno;
-			perror("Error: ");
+			perror("Error");
 			exit(tmp_errno);
 		}
 
 		switch (fork()) {
 			case -1:
 				tmp_errno = errno;
-				perror("Error: ");
+				perror("Error");
 				exit(tmp_errno);
 			
 			case 0:
@@ -66,7 +66,7 @@ int establish_serv_control_sock() {
 
 	if (listen_fd == -1) {
 		tmp_errno = errno;
-		perror("Error: ");
+		perror("Error");
 		return -tmp_errno;
 	}
 
@@ -74,7 +74,7 @@ int establish_serv_control_sock() {
 
 	if (tmp_errno == -1) {
 		tmp_errno = errno;
-		perror("Error: ");
+		perror("Error");
 		return -tmp_errno;
 	}
 
@@ -87,7 +87,7 @@ int establish_serv_control_sock() {
 
 	if (tmp_errno == -1) {
 		tmp_errno = errno;
-		perror("Error: ");
+		perror("Error");
 		return -tmp_errno;
 	}
 
@@ -95,7 +95,7 @@ int establish_serv_control_sock() {
 
 	if (tmp_errno == -1) {
 		tmp_errno = errno;
-		perror("Error: ");
+		perror("Error");
 		return -tmp_errno;
 	}
 
@@ -117,7 +117,7 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 		NI_NUMERICSERV);
 
 	if (client_entry != 0) {
-		fprintf(stderr, "Errorgf: %s\n", gai_strerror(client_entry));
+		fprintf(stderr, "Error: %s\n", gai_strerror(client_entry));
 		exit(client_entry);
 	}
 
