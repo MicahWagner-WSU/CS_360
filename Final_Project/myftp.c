@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
 	for(;;) {
 
 		// read input
-		char *input = get_input_line(0, 1024);
+		char *input = get_input_line(0, 2);
 
 		//should quit in here
 		if (input == NULL) {
@@ -139,7 +139,7 @@ char *get_input_line(int file_desc, int buf_size) {
 
 		for (int i = 0; i < actual; i++) {
 			if (buff[i] == '\n' || i > MAX_ARG_LENGTH + 1) {
-				memcpy(&final[total_read], buff, buf_size);
+				memcpy(&final[total_read], buff, actual);
 				final[(total_read + actual) - 1] = '\0';
 				return final;
 			}
