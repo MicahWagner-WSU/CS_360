@@ -2,8 +2,16 @@
 
 int establish_client_connection(char *hostname);
 
-char *get_input_line(int file_desc, int buf_size);
+char *get_input(int file_desc, int buf_size);
 
+int manage_exit(int socket_fd);
+int manage_cd();
+int manage_rcd(int socket_fd);
+int manage_ls();
+int manage_rls(int socket_fd);
+int manage_get(int socket_fd);
+int manage_show(int socket_fd);
+int manage_put(int socket_fd);
 
 /*
 
@@ -42,7 +50,7 @@ int main(int argc, char **argv) {
 	for(;;) {
 
 		// read input
-		char *input = get_input_line(0, 2);
+		char *input = get_input(0, READ_BUF_LEN);
 
 		//should quit in here
 		if (input == NULL) {
@@ -57,11 +65,16 @@ int main(int argc, char **argv) {
 			// stub for commands
 			// anything in here is just for testing / getting used to things
 			if(strcmp(args, "exit") == 0) {
-				write(socket_fd, "Q\n", 2);
-				read(socket_fd, &ack, 1);
-				if(strcmp(ack, "A") == 0) {
-					free(input);
+				free(input);
+
+				int exit_status;
+				if((exit_status = manage_exit(socket_fd)) == 0) {
 					exit(0);
+				} else if (exit_status > 0) {
+					fprintf(stderr, "Error: %s\n", strerror(exit_status));
+					exit(exit_status);
+				} else {
+					exit(-1);
 				}
 			}
 			if(strcmp(args, "cd") == 0)
@@ -129,18 +142,38 @@ int establish_client_connection(char *hostname) {
 
 	return socket_fd;
 }
+// 0 success, above 0 errno from client, below 0 error from server
+int manage_exit(int socket_fd) {
 
-char *get_input_line(int file_desc, int buf_size) {
+	if (write(socket_fd, "Q\n", 2) == -1)
+		return errno; 
+
+	char *response = get_input(socket_fd, 2);
+
+	if (response == NULL)
+		return errno;
+
+	if (strcmp(response, "A") == 0) {
+		free(response);
+		return 0;
+	} else {
+		printf("%s\n", &response[1]);
+		free(response);
+		return -1;
+	}
+}
+
+char *get_input(int file_desc, int buf_size) {
 	int actual = 0;
 	int total_read = 0;
 	char *final = calloc(MAX_ARG_LENGTH + 1, sizeof(char));
 	char *buff = calloc(buf_size, sizeof(char));
 	while((actual = read(file_desc, buff, buf_size)) > 0) {
-
 		for (int i = 0; i < actual; i++) {
 			if (buff[i] == '\n' || i > MAX_ARG_LENGTH + 1) {
 				memcpy(&final[total_read], buff, actual);
 				final[(total_read + actual) - 1] = '\0';
+				free(buff);
 				return final;
 			}
 		}
@@ -148,6 +181,12 @@ char *get_input_line(int file_desc, int buf_size) {
 		total_read += actual;
 	}
 
-	return NULL;
+	if(actual == -1) {
+		free(buff);
+		free(final);
+		return NULL;
+	}
 }
+
+
 

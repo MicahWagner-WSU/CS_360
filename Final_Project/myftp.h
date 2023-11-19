@@ -14,5 +14,5 @@
 
 #define MY_PORT_NUMBER 49999
 #define BACKLOG 4
-
+#define READ_BUF_LEN 1024
 #define MAX_ARG_LENGTH 4 + PATH_MAX

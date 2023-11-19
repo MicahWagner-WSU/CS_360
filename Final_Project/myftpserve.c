@@ -5,6 +5,14 @@ int establish_serv_control_sock();
 
 int handle_client(int control_connection_fd, struct sockaddr_in client_address);
 
+char *get_input(int file_desc, int buf_size);
+
+int handle_ctrl_cmd_D(int control_connection_fd);
+int handle_ctrl_cmd_C(int control_connection_fd);
+int handle_ctrl_cmd_L(int control_connection_fd);
+int handle_ctrl_cmd_G(int control_connection_fd);
+int handle_ctrl_cmd_P(int control_connection_fd);
+int handle_ctrl_cmd_Q(int control_connection_fd);
 
 /*
 
@@ -104,7 +112,7 @@ int establish_serv_control_sock() {
 
 int handle_client(int control_connection_fd, struct sockaddr_in client_address) {
 	char client_name[NI_MAXHOST];
-	int client_entry, actual;
+	int client_entry, actual, tmp_errno;
 	int process_id = getpid();
 
 	client_entry = getnameinfo(
@@ -124,17 +132,59 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 	printf("Child %d: Connection accepted from host %s\n", process_id, client_name);
 	fflush(stdout);
 
-	char cmd[2] = { 0 };
-	while ((actual = read(control_connection_fd, cmd, 1)) > 0) {
-		if(strcmp(cmd, "Q") == 0) {
-			write(control_connection_fd, "A", 1);
-			printf("Child %d: Quitting\n", process_id);
-			fflush(stdout);
-			return 0;
+	for(;;) {
+		char *input = get_input(control_connection_fd, READ_BUF_LEN);
+		if(strcmp(input, "Q") == 0) {
+			free(input);
+			if (handle_ctrl_cmd_Q(control_connection_fd) == 0) {
+				return 0;
+			} else {
+				tmp_errno = errno;
+				perror("Error");
+				return tmp_errno;
+			}
 		}
+
 	}
 	return 0;
 
 
+}
+
+int handle_ctrl_cmd_Q(int control_connection_fd) {
+	if (write(control_connection_fd, "A\n", 2) == -1) 
+		return errno;
+
+	printf("Child %d: Quitting\n", getpid());
+	fflush(stdout);
+
+	return 0;
+}
+
+
+
+char *get_input(int file_desc, int buf_size) {
+	int actual = 0;
+	int total_read = 0;
+	char *final = calloc(MAX_ARG_LENGTH + 1, sizeof(char));
+	char *buff = calloc(buf_size, sizeof(char));
+	while((actual = read(file_desc, buff, buf_size)) > 0) {
+		for (int i = 0; i < actual; i++) {
+			if (buff[i] == '\n' || i > MAX_ARG_LENGTH + 1) {
+				memcpy(&final[total_read], buff, actual);
+				final[(total_read + actual) - 1] = '\0';
+				free(buff);
+				return final;
+			}
+		}
+		memcpy(&final[total_read], buff, buf_size);
+		total_read += actual;
+	}
+
+	if(actual == -1) {
+		free(buff);
+		free(final);
+		return NULL;
+	}
 }
 
