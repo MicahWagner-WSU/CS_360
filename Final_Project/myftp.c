@@ -5,7 +5,7 @@ int establish_client_connection(char *hostname);
 char *get_input(int file_desc, int buf_size);
 
 int manage_exit(int socket_fd);
-int manage_cd();
+int manage_cd(char *path);
 int manage_rcd(int socket_fd);
 int manage_ls();
 int manage_rls(int socket_fd);
@@ -35,7 +35,13 @@ int main(int argc, char **argv) {
 	int socket_fd, actual, tmp_errno;
 	char *hostname = argv[1];
 	char buff[MAX_ARG_LENGTH + 1] = { 0 };
-	char *args;
+	char *first_arg;
+	char *second_arg;
+
+	if (argc != 2) {
+		printf("Usage: ./mftp <hostname | IP address>\n");
+		return -1;
+	}
 
 	socket_fd = establish_client_connection(hostname);
 
@@ -52,49 +58,47 @@ int main(int argc, char **argv) {
 		// read input
 		char *input = get_input(0, READ_BUF_LEN);
 
-		//should quit in here
+		//should quit in here, errno?
 		if (input == NULL) {
 			free(input);
 			return 0;
 		}
 
-		args = strtok(input, " ");
-		while (args != NULL) {
-			char ack[2] = {0};
+		first_arg = strtok(input, " ");
 
-			// stub for commands
-			// anything in here is just for testing / getting used to things
-			if(strcmp(args, "exit") == 0) {
-				free(input);
 
-				int exit_status;
-				if((exit_status = manage_exit(socket_fd)) == 0) {
-					exit(0);
-				} else if (exit_status > 0) {
-					fprintf(stderr, "Error: %s\n", strerror(exit_status));
-					exit(exit_status);
-				} else {
-					exit(-1);
-				}
+		// stub for commands
+		// anything in here is just for testing / getting used to things
+		if(strcmp(first_arg, "exit") == 0) {
+			free(input);
+
+			int exit_status;
+			if((exit_status = manage_exit(socket_fd)) == 0) {
+				exit(0);
+			} else {
+				exit(exit_status);
 			}
-			if(strcmp(args, "cd") == 0)
-				return 0;
-			if(strcmp(args, "rcd") == 0)
-				return 0;
-			if(strcmp(args, "ls") == 0)
-				return 0;
-			if(strcmp(args, "rls") == 0)
-				return 0;
-			if(strcmp(args, "get") == 0)
-				return 0;
-			if(strcmp(args, "show") == 0)
-				return 0;
-			if(strcmp(args, "put") == 0)
-				return 0;
-
-			args = strtok(NULL, " ");
-
+		} else if(strcmp(first_arg, "cd") == 0) {
+			second_arg = strtok(NULL, " ");
+			manage_cd(second_arg);
+		} else if(strcmp(first_arg, "rcd") == 0) {
+			return 0;
+		} else if(strcmp(first_arg, "ls") == 0) {
+			return 0;
+		} else if(strcmp(first_arg, "rls") == 0) {
+			return 0;
+		} else if(strcmp(first_arg, "get") == 0) {
+			return 0;
+		} else if(strcmp(first_arg, "show") == 0) {
+			return 0;
+		} else if(strcmp(first_arg, "put") == 0) {
+			return 0;
+		} else {
+			printf("Command '%s' is unknown - ignored\n", first_arg);
 		}
+
+		//first_arg = strtok(NULL, " ");
+
 	
 		printf("MFTP> ");
 		fflush(stdout);
@@ -118,7 +122,7 @@ int establish_client_connection(char *hostname) {
 	err = getaddrinfo(hostname, port_string, &hints, &actual_data);
 
 	if (err != 0) {
-		fprintf(stderr, "Error: %s\n", gai_strerror(err));
+		fprintf(stderr, "Connection to server failed: %s\n", gai_strerror(err));
 		return -err;
 	}
 
@@ -127,7 +131,7 @@ int establish_client_connection(char *hostname) {
 
 	if (socket_fd == -1) {
 		tmp_errno = errno;
-		perror("Error");
+		perror("Connection to server failed");
 		return -tmp_errno;
 	}
 
@@ -136,7 +140,7 @@ int establish_client_connection(char *hostname) {
 
 	if (tmp_errno == -1) {
 		tmp_errno = errno;
-		perror("Error");
+		perror("Connection to server failed");
 		return -tmp_errno;
 	}
 
@@ -144,14 +148,27 @@ int establish_client_connection(char *hostname) {
 }
 // 0 success, above 0 errno from client, below 0 error from server
 int manage_exit(int socket_fd) {
+	int tmp_errno;
 
-	if (write(socket_fd, "Q\n", 2) == -1)
+	if (write(socket_fd, "Q\n", 2) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
 		return errno; 
+	}
 
 	char *response = get_input(socket_fd, 2);
 
-	if (response == NULL)
-		return errno;
+	if (response == NULL) {
+		if (errno) {
+			tmp_errno = errno;
+			perror("Error reading");
+			return errno; 
+		} else {
+			printf("Error: control socket closed unexpectedly\n");
+			return -1;
+		}
+
+	}
 
 	if (strcmp(response, "A") == 0) {
 		free(response);
@@ -160,6 +177,20 @@ int manage_exit(int socket_fd) {
 		printf("%s\n", &response[1]);
 		free(response);
 		return -1;
+	}
+}
+
+int manage_cd(char *path) {
+
+	int tmp_errno;
+	int cd_status;
+
+	if ((cd_status = chdir(path)) == 0) {
+		return 0;
+	} else {
+		tmp_errno = errno;
+		perror("Change directory");
+		return tmp_errno;
 	}
 }
 
@@ -181,11 +212,10 @@ char *get_input(int file_desc, int buf_size) {
 		total_read += actual;
 	}
 
-	if(actual == -1) {
-		free(buff);
-		free(final);
-		return NULL;
-	}
+	free(buff);
+	free(final);
+	return NULL;
+
 }
 
 
