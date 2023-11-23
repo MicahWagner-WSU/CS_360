@@ -214,25 +214,25 @@ int manage_ls() {
 					if (close(rdr) == -1) {
 						tmp_errno = errno;
 						perror("Close error");
-						return tmp_errno;
+						exit(tmp_errno);
 					}
 					// close stdout and dup to connect filters
 					if (close(1) == -1) {
 						tmp_errno = errno;
 						perror("Close error");
-						return tmp_errno;
+						exit(tmp_errno);
 					}
 
 					if (dup(wtr) == -1) {
 						tmp_errno = errno;
 						perror("FD duplication error");
-						return tmp_errno;
+						exit(tmp_errno);
 					}
 					
 					if (close(wtr) == -1) {
 						tmp_errno = errno;
 						perror("Close error");
-						return tmp_errno;
+						exit(tmp_errno);
 					}
 					// exec and check if failed
 					execlp("ls", "ls", "-l", NULL);
@@ -243,25 +243,25 @@ int manage_ls() {
 					if (close(wtr) == -1) {
 						tmp_errno = errno;
 						perror("Close error");
-						return tmp_errno;
+						exit(tmp_errno);
 					}
 					// close stdin and dup to connect filters
 					if (close(0) == -1) {
 						tmp_errno = errno;
 						perror("Close error");
-						return tmp_errno;
+						exit(tmp_errno);
 					}
 
 					if (dup(rdr) == -1) {
 						tmp_errno = errno;
 						perror("FD duplication error");
-						return tmp_errno;
+						exit(tmp_errno);
 					} 
 
 					if (close(rdr) == -1) {
 						tmp_errno = errno;
 						perror("Close error");
-						return tmp_errno;
+						exit(tmp_errno);
 					}
 					// exec and check if failed
 					execlp("more", "more", "-20", NULL);
