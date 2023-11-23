@@ -71,20 +71,17 @@ int main(int argc, char **argv) {
 		// anything in here is just for testing / getting used to things
 		if(strcmp(first_arg, "exit") == 0) {
 			free(input);
-
-			int exit_status;
-			if((exit_status = manage_exit(socket_fd)) == 0) {
-				exit(0);
-			} else {
-				exit(exit_status);
-			}
+			manage_exit(socket_fd);
 		} else if(strcmp(first_arg, "cd") == 0) {
 			second_arg = strtok(NULL, " ");
+			//not sure what to do with error number
+			//possibly print something else when we put no path
 			manage_cd(second_arg);
 		} else if(strcmp(first_arg, "rcd") == 0) {
 			return 0;
 		} else if(strcmp(first_arg, "ls") == 0) {
-			return 0;
+			//maybe just exit if we get an error? all errors seem super extreme
+			manage_ls();
 		} else if(strcmp(first_arg, "rls") == 0) {
 			return 0;
 		} else if(strcmp(first_arg, "get") == 0) {
@@ -96,9 +93,6 @@ int main(int argc, char **argv) {
 		} else {
 			printf("Command '%s' is unknown - ignored\n", first_arg);
 		}
-
-		//first_arg = strtok(NULL, " ");
-
 	
 		printf("MFTP> ");
 		fflush(stdout);
@@ -153,7 +147,7 @@ int manage_exit(int socket_fd) {
 	if (write(socket_fd, "Q\n", 2) == -1) {
 		tmp_errno = errno;
 		perror("Error writing");
-		return errno; 
+		exit(errno); 
 	}
 
 	char *response = get_input(socket_fd, 2);
@@ -162,21 +156,21 @@ int manage_exit(int socket_fd) {
 		if (errno) {
 			tmp_errno = errno;
 			perror("Error reading");
-			return errno; 
+			exit(errno); 
 		} else {
 			printf("Error: control socket closed unexpectedly\n");
-			return -1;
+			exit(-1);
 		}
 
 	}
 
 	if (strcmp(response, "A") == 0) {
 		free(response);
-		return 0;
+		exit(0);
 	} else {
 		printf("%s\n", &response[1]);
 		free(response);
-		return -1;
+		exit(-1);
 	}
 }
 
@@ -192,6 +186,119 @@ int manage_cd(char *path) {
 		perror("Change directory");
 		return tmp_errno;
 	}
+}
+
+//verbose error checking, ask if I need it
+int manage_ls() {
+
+	int fd[2];
+	int rdr, wtr, tmp_errno;
+
+	if (pipe(fd) == -1) {
+		tmp_errno = errno;
+		perror("Pipe error");
+		return tmp_errno;
+	}
+
+	rdr = fd[0]; wtr = fd[1];
+
+	for(int i = 0; i < 2; i++) {
+
+		switch (fork()) {
+			case -1:
+				fprintf(stderr, "%s\n", strerror(errno));
+				exit(errno);
+			case 0:
+				if (i == 0) {
+					// we are child, close reader end since we're writing
+					if (close(rdr) == -1) {
+						tmp_errno = errno;
+						perror("Close error");
+						return tmp_errno;
+					}
+					// close stdout and dup to connect filters
+					if (close(1) == -1) {
+						tmp_errno = errno;
+						perror("Close error");
+						return tmp_errno;
+					}
+
+					if (dup(wtr) == -1) {
+						tmp_errno = errno;
+						perror("FD duplication error");
+						return tmp_errno;
+					}
+					
+					if (close(wtr) == -1) {
+						tmp_errno = errno;
+						perror("Close error");
+						return tmp_errno;
+					}
+					// exec and check if failed
+					execlp("ls", "ls", "-l", NULL);
+					fprintf(stderr, "%s\n", strerror(errno));
+					exit(errno);
+				} else {
+					// we are parent, close writer since we're reading
+					if (close(wtr) == -1) {
+						tmp_errno = errno;
+						perror("Close error");
+						return tmp_errno;
+					}
+					// close stdin and dup to connect filters
+					if (close(0) == -1) {
+						tmp_errno = errno;
+						perror("Close error");
+						return tmp_errno;
+					}
+
+					if (dup(rdr) == -1) {
+						tmp_errno = errno;
+						perror("FD duplication error");
+						return tmp_errno;
+					} 
+
+					if (close(rdr) == -1) {
+						tmp_errno = errno;
+						perror("Close error");
+						return tmp_errno;
+					}
+					// exec and check if failed
+					execlp("more", "more", "-20", NULL);
+					fprintf(stderr, "%s\n", strerror(errno));
+					exit(errno);
+				}
+
+			default:
+				break;
+		}
+	}
+
+	if (close(rdr) == -1) {
+		tmp_errno = errno;
+		perror("Close error");
+		return tmp_errno;
+	}
+
+	if (close(wtr) == -1) {
+		tmp_errno = errno;
+		perror("Close error");
+		return tmp_errno;
+	}
+
+	if (wait(NULL) == -1) {
+		tmp_errno = errno;
+		perror("Wait error");
+		return tmp_errno;
+	}
+
+	if (wait(NULL) == -1) {
+		tmp_errno = errno;
+		perror("Wait error");
+		return tmp_errno;
+	}
+
+	return 0;
 }
 
 char *get_input(int file_desc, int buf_size) {
