@@ -8,11 +8,13 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address);
 char *get_input(int file_desc, int buf_size);
 
 int handle_ctrl_cmd_D(int control_connection_fd);
-int handle_ctrl_cmd_C(int control_connection_fd);
+int handle_ctrl_cmd_C(int control_connection_fd, char *path);
 int handle_ctrl_cmd_L(int control_connection_fd);
 int handle_ctrl_cmd_G(int control_connection_fd);
 int handle_ctrl_cmd_P(int control_connection_fd);
 int handle_ctrl_cmd_Q(int control_connection_fd);
+
+int send_error(int socket_fd, int error_num);
 
 /*
 
@@ -21,7 +23,7 @@ things to do:
 - create generic function which spins up a new socket to accept (used fo data connection)
 - also create generic function to close a socket
 
-
+NOTE: probably get rid flushing
 
 */
 
@@ -133,17 +135,16 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 	fflush(stdout);
 
 	for(;;) {
+		// for now ignore what the handler functions return, not sure if its necessary
 		char *input = get_input(control_connection_fd, READ_BUF_LEN);
-		if(strcmp(input, "Q") == 0) {
+		if (strcmp(input, "Q") == 0) {
 			free(input);
-			if (handle_ctrl_cmd_Q(control_connection_fd) == 0) {
-				return 0;
-			} else {
-				tmp_errno = errno;
-				perror("Error");
-				return tmp_errno;
-			}
+			handle_ctrl_cmd_Q(control_connection_fd);
+		} else if (input[0] == 'C') {
+			handle_ctrl_cmd_C(control_connection_fd, &input[1]);
 		}
+
+		free(input);
 
 	}
 	return 0;
@@ -151,13 +152,66 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 
 }
 
+
+int handle_ctrl_cmd_C(int control_connection_fd, char *path) {
+	int tmp_errno;
+	int cd_status;
+
+	if ((cd_status = chdir(path)) == 0) {
+		if (write(control_connection_fd, "A\n", 2) == -1) {
+			tmp_errno = errno;
+			perror("Error writing");
+			return tmp_errno;
+		}
+
+		printf("Child %d: changed directory to %s\n", getpid(), path);
+		fflush(stdout);
+
+		return 0;
+	} else {
+		tmp_errno = errno;
+		perror("Change directory error");
+		send_error(control_connection_fd, tmp_errno);
+		return tmp_errno;
+	}
+}
+
+
+// error check first write, if so, do I error check write("E")?
 int handle_ctrl_cmd_Q(int control_connection_fd) {
-	if (write(control_connection_fd, "A\n", 2) == -1) 
-		return errno;
+	int tmp_errno;
+	if (write(control_connection_fd, "A\n", 2) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		exit(tmp_errno);
+	}
 
 	printf("Child %d: Quitting\n", getpid());
 	fflush(stdout);
 
+	exit(0);
+}
+
+int send_error(int socket_fd, int error_num) {
+	int tmp_errno;
+	char *string_error = strerror(error_num);
+	if (write(socket_fd, "E", 1) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return tmp_errno;
+	}
+
+	if (write(socket_fd, string_error, strlen(string_error)) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return tmp_errno;
+	}
+	
+	if (write(socket_fd, "\n", 1) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return tmp_errno;
+	}
 	return 0;
 }
 

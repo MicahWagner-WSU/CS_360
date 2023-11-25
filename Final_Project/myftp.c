@@ -6,7 +6,7 @@ char *get_input(int file_desc, int buf_size);
 
 int manage_exit(int socket_fd);
 int manage_cd(char *path);
-int manage_rcd(int socket_fd);
+int manage_rcd(int socket_fd, char *path);
 int manage_ls();
 int manage_rls(int socket_fd);
 int manage_get(int socket_fd);
@@ -78,7 +78,10 @@ int main(int argc, char **argv) {
 			//possibly print something else when we put no path
 			manage_cd(second_arg);
 		} else if(strcmp(first_arg, "rcd") == 0) {
-			return 0;
+			//not sure what to do with the return values here, nothing for now.
+			second_arg = strtok(NULL, " ");
+			manage_rcd(socket_fd,second_arg);
+
 		} else if(strcmp(first_arg, "ls") == 0) {
 			//maybe just exit if we get an error? all errors seem super extreme
 			manage_ls();
@@ -150,7 +153,7 @@ int manage_exit(int socket_fd) {
 		exit(errno); 
 	}
 
-	char *response = get_input(socket_fd, 2);
+	char *response = get_input(socket_fd, READ_BUF_LEN);
 
 	if (response == NULL) {
 		if (errno) {
@@ -168,7 +171,7 @@ int manage_exit(int socket_fd) {
 		free(response);
 		exit(0);
 	} else {
-		printf("%s\n", &response[1]);
+		printf("Error response from server: %s\n", &response[1]);
 		free(response);
 		exit(-1);
 	}
@@ -300,6 +303,44 @@ int manage_ls() {
 
 	return 0;
 }
+
+int manage_rcd(int socket_fd, char *path) {
+
+	int tmp_errno;
+	char *c = "C";
+	char *response;
+
+	if (write(socket_fd, c, 1) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return errno; 
+	}
+
+	if (write(socket_fd, path, strlen(path)) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return errno; 
+	}
+
+	if (write(socket_fd, "\n", 1) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return errno; 
+	}
+
+	response = get_input(socket_fd, READ_BUF_LEN);
+
+	if (strcmp(response, "A") == 0) {
+		free(response);
+		return 0;
+	} else {
+		printf("Error response from server: %s\n", &response[1]);
+		free(response);
+		return -1;
+	}
+
+}
+
 
 char *get_input(int file_desc, int buf_size) {
 	int actual = 0;
