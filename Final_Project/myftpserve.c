@@ -1,7 +1,7 @@
 #include "myftp.h"
 
 
-int establish_serv_control_sock();
+int establish_listening_sock(int port_num);
 
 int handle_client(int control_connection_fd, struct sockaddr_in client_address);
 
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
 	int listen_fd, connection_fd, length, child_pid, tmp_errno;
 	struct sockaddr_in client_address;
 
-	listen_fd = establish_serv_control_sock();
+	listen_fd = establish_listening_sock(MY_PORT_NUMBER);
 
 	if (listen_fd < 0)
 		return -listen_fd;
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
 	}
 }
 
-int establish_serv_control_sock() {
+int establish_listening_sock(int port_num) {
 	int listen_fd, connection_fd, tmp_errno;
 	struct sockaddr_in server_address;
 
@@ -90,7 +90,7 @@ int establish_serv_control_sock() {
 
 	memset(&server_address, 0, sizeof(struct sockaddr_in));
 	server_address.sin_family = AF_INET;
-	server_address.sin_port = htons(MY_PORT_NUMBER);
+	server_address.sin_port = htons(port_num);
 	server_address.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	tmp_errno = bind(listen_fd, (struct sockaddr *) &server_address, sizeof(struct sockaddr_in));
@@ -142,6 +142,8 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 			handle_ctrl_cmd_Q(control_connection_fd);
 		} else if (input[0] == 'C') {
 			handle_ctrl_cmd_C(control_connection_fd, &input[1]);
+		} else if (input[0] == 'D') {
+
 		}
 
 		free(input);
@@ -192,9 +194,48 @@ int handle_ctrl_cmd_Q(int control_connection_fd) {
 	exit(0);
 }
 
+int handle_ctrl_cmd_D(int control_connection_fd) {
+	int tmp_errno, data_fd;
+	struct sockaddr_in addr = {0};
+	socklen_t addrlen = sizeof(struct sockaddr_in);
+	char port_string[NI_MAXSERV] = { 0 };
+
+
+	data_fd = establish_listening_sock(0);
+
+	if(data_fd < 0) {
+		send_error(control_connection_fd, -data_fd);
+		return data_fd;
+	}
+
+	if (write(control_connection_fd, "A", 1) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return -tmp_errno;
+	}
+
+	if (getsockname(data_fd, (struct sockaddr *) &addr, &addrlen) == -1) {
+		tmp_errno = errno;
+		perror("Error Retrieving Socket Name:");
+		send_error(control_connection_fd, tmp_errno);
+		return -tmp_errno;
+	}
+
+	sprintf(port_string, "%d", ntohs(addr.sin_port));
+
+	//send port? how should do?
+	// if (write(socket_fd, port_string, ?) == -1) {
+	// 	tmp_errno = errno;
+	// 	perror("Error writing");
+	// 	return -tmp_errno;
+	// }
+
+}
+
 int send_error(int socket_fd, int error_num) {
 	int tmp_errno;
 	char *string_error = strerror(error_num);
+// this feels silly, try not to do seperate write calls, feels lazy
 	if (write(socket_fd, "E", 1) == -1) {
 		tmp_errno = errno;
 		perror("Error writing");
@@ -214,8 +255,6 @@ int send_error(int socket_fd, int error_num) {
 	}
 	return 0;
 }
-
-
 
 char *get_input(int file_desc, int buf_size) {
 	int actual = 0;

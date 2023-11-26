@@ -1,6 +1,6 @@
 #include "myftp.h"
 
-int establish_client_connection(char *hostname);
+int establish_socket_connection(char *hostname, int port_num);
 
 char *get_input(int file_desc, int buf_size);
 
@@ -12,6 +12,8 @@ int manage_rls(int socket_fd);
 int manage_get(int socket_fd);
 int manage_show(int socket_fd);
 int manage_put(int socket_fd);
+
+int establish_data_connection(int socket_fd, char *hostname);
 
 /*
 
@@ -43,7 +45,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	socket_fd = establish_client_connection(hostname);
+	socket_fd = establish_socket_connection(hostname, MY_PORT_NUMBER);
 
 	if (socket_fd < 0)
 		return -socket_fd;
@@ -103,7 +105,7 @@ int main(int argc, char **argv) {
 	}
 }
 
-int establish_client_connection(char *hostname) {
+int establish_socket_connection(char *hostname, int port_num) {
 	int socket_fd, num_read, tmp_errno;
 	struct addrinfo hints, *actual_data;
 	char port_string[NI_MAXSERV] = { 0 };
@@ -113,7 +115,7 @@ int establish_client_connection(char *hostname) {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_family = AF_INET;
 
-	sprintf(port_string, "%d", MY_PORT_NUMBER);
+	sprintf(port_string, "%d", port_num);
 
 	/* first get the server address info */
 	err = getaddrinfo(hostname, port_string, &hints, &actual_data);
@@ -307,10 +309,9 @@ int manage_ls() {
 int manage_rcd(int socket_fd, char *path) {
 
 	int tmp_errno;
-	char *c = "C";
 	char *response;
-
-	if (write(socket_fd, c, 1) == -1) {
+// this feels silly, maybe dont do seperate write calls, kind of lazy
+	if (write(socket_fd, "C", 1) == -1) {
 		tmp_errno = errno;
 		perror("Error writing");
 		return errno; 
@@ -340,6 +341,48 @@ int manage_rcd(int socket_fd, char *path) {
 	}
 
 }
+
+int establish_data_connection(int socket_fd, char *hostname) {
+	int tmp_errno;
+	char *response;
+
+
+	if (write(socket_fd, "D\n", 2) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return -errno; 
+	}
+
+	response = get_input(socket_fd, READ_BUF_LEN);
+
+	if (response[0] == 'A') {
+		int port_num;
+
+		sscanf(&response[1], "%d", &port_num);
+		int data_fd = establish_socket_connection(hostname, port_num);
+
+		if (socket_fd < 0)
+			return socket_fd;
+
+		return data_fd;
+
+	} else {
+
+		if(errno != 0) {
+			tmp_errno = errno;
+			perror("Input response error");
+			free(response);
+			return -errno; 
+		} else {
+			printf("Error response from server: %s\n", &response[1]);
+			free(response);
+			return -1;
+		}
+	}
+
+
+}
+
 
 
 char *get_input(int file_desc, int buf_size) {
