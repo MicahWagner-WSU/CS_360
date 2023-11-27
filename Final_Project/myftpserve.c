@@ -18,12 +18,8 @@ int send_error(int socket_fd, int error_num);
 
 /*
 
-things to do:
-- create a read loop to read control commands from client
-- create generic function which spins up a new socket to accept (used fo data connection)
-- also create generic function to close a socket
 
-NOTE: probably get rid flushing
+NOTE: probably get rid flushing, add a generic send_ctrl_command function, takes a command (A, E, L, etc.), next arguemnt is an optional string
 
 */
 
@@ -196,9 +192,9 @@ int handle_ctrl_cmd_Q(int control_connection_fd) {
 
 int handle_ctrl_cmd_D(int control_connection_fd) {
 	int tmp_errno, data_fd;
-	struct sockaddr_in addr = {0};
+	struct sockaddr_in addr;
 	socklen_t addrlen = sizeof(struct sockaddr_in);
-	char port_string[NI_MAXSERV] = { 0 };
+	char port_string[NI_MAXSERV + 2] = { 0 };
 
 
 	data_fd = establish_listening_sock(0);
@@ -214,6 +210,8 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 		return -tmp_errno;
 	}
 
+	memset(&addr, 0, sizeof(struct sockaddr));
+
 	if (getsockname(data_fd, (struct sockaddr *) &addr, &addrlen) == -1) {
 		tmp_errno = errno;
 		perror("Error Retrieving Socket Name:");
@@ -223,12 +221,13 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 
 	sprintf(port_string, "%d", ntohs(addr.sin_port));
 
-	//send port? how should do?
-	// if (write(socket_fd, port_string, ?) == -1) {
-	// 	tmp_errno = errno;
-	// 	perror("Error writing");
-	// 	return -tmp_errno;
-	// }
+
+	port_string[strlen(port_string)] = '\n';
+	if (write(socket_fd, port_string, strlen(port_string) + 1) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return -tmp_errno;
+	}
 
 }
 

@@ -18,17 +18,7 @@ int establish_data_connection(int socket_fd, char *hostname);
 /*
 
 things to do:
-
-
-- make a clean error handle function (later)
-- make it so that I can read input buffer of length 2 rn it halts
-- handle the EOF case 
-- make sure you terminate commands with new line
-- create a seperate function for parsing input
-	- either create a function for each individual command *
-	- or create a function that raps the whole token parsing 
-- create generic function that spins up new socket (used for data connection)
-- also create generic function to close a socket
+add a generic send_ctrl_command function, takes a command (A, E, L, etc.), next arguemnt is an optional string
 
 
 */
