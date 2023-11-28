@@ -14,6 +14,7 @@ int manage_show(int socket_fd);
 int manage_put(int socket_fd);
 
 int establish_data_connection(int socket_fd, char *hostname);
+int send_ctrl_command(int socket_fd, char command, char *optional_message);
 
 /*
 
@@ -45,6 +46,7 @@ int main(int argc, char **argv) {
 	printf("MFTP> ");
 	fflush(stdout);
 
+	int connected_data_fd;
 	for(;;) {
 
 		// read input
@@ -78,7 +80,8 @@ int main(int argc, char **argv) {
 			//maybe just exit if we get an error? all errors seem super extreme
 			manage_ls();
 		} else if(strcmp(first_arg, "rls") == 0) {
-			return 0;
+			// currently seg faults if we try to do this when server quits unexpectedly, fix
+			connected_data_fd = establish_data_connection(socket_fd, hostname);
 		} else if(strcmp(first_arg, "get") == 0) {
 			return 0;
 		} else if(strcmp(first_arg, "show") == 0) {
@@ -139,9 +142,9 @@ int establish_socket_connection(char *hostname, int port_num) {
 int manage_exit(int socket_fd) {
 	int tmp_errno;
 
-	if (write(socket_fd, "Q\n", 2) == -1) {
+	if ((tmp_errno = send_ctrl_command(socket_fd, 'Q', NULL)) != 0) {
 		tmp_errno = errno;
-		perror("Error writing");
+		perror("Error sending exit");
 		exit(errno); 
 	}
 
@@ -301,23 +304,7 @@ int manage_rcd(int socket_fd, char *path) {
 	int tmp_errno;
 	char *response;
 // this feels silly, maybe dont do seperate write calls, kind of lazy
-	if (write(socket_fd, "C", 1) == -1) {
-		tmp_errno = errno;
-		perror("Error writing");
-		return errno; 
-	}
-
-	if (write(socket_fd, path, strlen(path)) == -1) {
-		tmp_errno = errno;
-		perror("Error writing");
-		return errno; 
-	}
-
-	if (write(socket_fd, "\n", 1) == -1) {
-		tmp_errno = errno;
-		perror("Error writing");
-		return errno; 
-	}
+	send_ctrl_command(socket_fd, 'C', path);
 
 	response = get_input(socket_fd, READ_BUF_LEN);
 
@@ -351,6 +338,8 @@ int establish_data_connection(int socket_fd, char *hostname) {
 		sscanf(&response[1], "%d", &port_num);
 		int data_fd = establish_socket_connection(hostname, port_num);
 
+		printf("A%d\n", port_num);
+
 		if (socket_fd < 0)
 			return socket_fd;
 
@@ -371,6 +360,31 @@ int establish_data_connection(int socket_fd, char *hostname) {
 	}
 
 
+}
+
+
+int send_ctrl_command(int socket_fd, char command, char *optional_message) {
+	int tmp_errno;
+	char *ctrl_command;
+	if(optional_message != NULL) {
+		ctrl_command = calloc(strlen(optional_message) + 3, sizeof(char));
+		int message_size = strlen(optional_message);
+		ctrl_command[0] = command;
+		memcpy(&ctrl_command[1], optional_message, message_size);
+		ctrl_command[message_size + 1] = '\n';
+	} else {
+		ctrl_command = calloc(3, sizeof(char));
+		ctrl_command[0] = command;
+		ctrl_command[1] = '\n';
+	}
+
+	if (write(socket_fd, ctrl_command, strlen(ctrl_command)) == -1) {
+		tmp_errno = errno;
+		perror("Error writing");
+		return tmp_errno;
+	}
+	free(ctrl_command);
+	return 0;
 }
 
 
