@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
 		// read input
 		char *input = get_input(0, READ_BUF_LEN);
 
+
 		//should quit in here, errno?
 		if (input == NULL) {
 			free(input);
@@ -61,9 +62,15 @@ int main(int argc, char **argv) {
 		first_arg = strtok(input, " ");
 
 
+
 		// stub for commands
 		// anything in here is just for testing / getting used to things
-		if (strcmp(first_arg, "exit") == 0) {
+		if (first_arg == NULL) {
+			printf("MFTP> ");
+			fflush(stdout);
+			free(input);
+			continue;
+		} else if (strcmp(first_arg, "exit") == 0) {
 			free(input);
 			manage_exit(socket_fd);
 		} else if (strcmp(first_arg, "cd") == 0) {
@@ -215,58 +222,23 @@ int manage_ls() {
 			case 0:
 				if (i == 0) {
 					// we are child, close reader end since we're writing
-					if (close(rdr) == -1) {
-						tmp_errno = errno;
-						perror("Close error");
-						exit(tmp_errno);
-					}
+					close(rdr);
 					// close stdout and dup to connect filters
-					if (close(1) == -1) {
-						tmp_errno = errno;
-						perror("Close error");
-						exit(tmp_errno);
-					}
+					close(1);
+					dup(wtr);
+					close(wtr);
 
-					if (dup(wtr) == -1) {
-						tmp_errno = errno;
-						perror("FD duplication error");
-						exit(tmp_errno);
-					}
-					
-					if (close(wtr) == -1) {
-						tmp_errno = errno;
-						perror("Close error");
-						exit(tmp_errno);
-					}
 					// exec and check if failed
 					execlp("ls", "ls", "-l", NULL);
 					fprintf(stderr, "%s\n", strerror(errno));
 					exit(errno);
 				} else {
 					// we are parent, close writer since we're reading
-					if (close(wtr) == -1) {
-						tmp_errno = errno;
-						perror("Close error");
-						exit(tmp_errno);
-					}
+					close(wtr);
 					// close stdin and dup to connect filters
-					if (close(0) == -1) {
-						tmp_errno = errno;
-						perror("Close error");
-						exit(tmp_errno);
-					}
-
-					if (dup(rdr) == -1) {
-						tmp_errno = errno;
-						perror("FD duplication error");
-						exit(tmp_errno);
-					} 
-
-					if (close(rdr) == -1) {
-						tmp_errno = errno;
-						perror("Close error");
-						exit(tmp_errno);
-					}
+					close(0);
+					dup(rdr);
+					close(rdr);
 					// exec and check if failed
 					execlp("more", "more", "-20", NULL);
 					fprintf(stderr, "%s\n", strerror(errno));
@@ -278,17 +250,8 @@ int manage_ls() {
 		}
 	}
 
-	if (close(rdr) == -1) {
-		tmp_errno = errno;
-		perror("Close error");
-		return tmp_errno;
-	}
-
-	if (close(wtr) == -1) {
-		tmp_errno = errno;
-		perror("Close error");
-		return tmp_errno;
-	}
+	close(rdr);
+	close(wtr);
 
 	if (wait(NULL) == -1) {
 		tmp_errno = errno;
@@ -316,23 +279,9 @@ int manage_rls(int socket_fd, int data_fd) {
 			exit(errno);
 		case 0:
 			// close stdin and dup to connect filters
-			if (close(0) == -1) {
-				tmp_errno = errno;
-				perror("Close error");
-				exit(tmp_errno);
-			}
-
-			if (dup(data_fd) == -1) {
-				tmp_errno = errno;
-				perror("FD duplication error");
-				exit(tmp_errno);
-			} 
-
-			if (close(data_fd) == -1) {
-				tmp_errno = errno;
-				perror("Close error");
-				exit(tmp_errno);
-			}
+			close(0);
+			dup(data_fd);
+			close(data_fd);
 
 			// exec and check if failed
 			execlp("more", "more", "-20", NULL);
