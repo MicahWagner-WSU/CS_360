@@ -8,7 +8,7 @@ int manage_exit(int socket_fd);
 int manage_cd(char *path);
 int manage_rcd(int socket_fd, char *path);
 int manage_ls();
-int manage_rls(int socket_fd);
+int manage_rls(int socket_fd, int data_fd);
 int manage_get(int socket_fd);
 int manage_show(int socket_fd);
 int manage_put(int socket_fd);
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
 	printf("MFTP> ");
 	fflush(stdout);
 
-	int connected_data_fd;
+	int connected_data_fd = 0;
 	for(;;) {
 
 		// read input
@@ -63,30 +63,36 @@ int main(int argc, char **argv) {
 
 		// stub for commands
 		// anything in here is just for testing / getting used to things
-		if(strcmp(first_arg, "exit") == 0) {
+		if (strcmp(first_arg, "exit") == 0) {
 			free(input);
 			manage_exit(socket_fd);
-		} else if(strcmp(first_arg, "cd") == 0) {
+		} else if (strcmp(first_arg, "cd") == 0) {
 			second_arg = strtok(NULL, " ");
 			//not sure what to do with error number
 			//possibly print something else when we put no path
 			manage_cd(second_arg);
-		} else if(strcmp(first_arg, "rcd") == 0) {
+		} else if (strcmp(first_arg, "rcd") == 0) {
 			//not sure what to do with the return values here, nothing for now.
 			second_arg = strtok(NULL, " ");
 			manage_rcd(socket_fd,second_arg);
 
-		} else if(strcmp(first_arg, "ls") == 0) {
+		} else if (strcmp(first_arg, "ls") == 0) {
 			//maybe just exit if we get an error? all errors seem super extreme
 			manage_ls();
-		} else if(strcmp(first_arg, "rls") == 0) {
+		} else if (strcmp(first_arg, "rls") == 0) {
 			// currently seg faults if we try to do this when server quits unexpectedly, fix
 			connected_data_fd = establish_data_connection(socket_fd, hostname);
-		} else if(strcmp(first_arg, "get") == 0) {
+
+			if (connected_data_fd > 0) {
+				manage_rls(socket_fd, connected_data_fd);
+				close(connected_data_fd);
+				connected_data_fd = 0;
+			}
+		} else if (strcmp(first_arg, "get") == 0) {
 			return 0;
-		} else if(strcmp(first_arg, "show") == 0) {
+		} else if (strcmp(first_arg, "show") == 0) {
 			return 0;
-		} else if(strcmp(first_arg, "put") == 0) {
+		} else if (strcmp(first_arg, "put") == 0) {
 			return 0;
 		} else {
 			printf("Command '%s' is unknown - ignored\n", first_arg);
@@ -297,6 +303,53 @@ int manage_ls() {
 	}
 
 	return 0;
+}
+
+int manage_rls(int socket_fd, int data_fd) {
+	int tmp_errno;
+
+	send_ctrl_command(socket_fd, 'L', NULL);
+
+	switch (fork()) {
+		case -1:
+			fprintf(stderr, "%s\n", strerror(errno));
+			exit(errno);
+		case 0:
+			// close stdin and dup to connect filters
+			if (close(0) == -1) {
+				tmp_errno = errno;
+				perror("Close error");
+				exit(tmp_errno);
+			}
+
+			if (dup(data_fd) == -1) {
+				tmp_errno = errno;
+				perror("FD duplication error");
+				exit(tmp_errno);
+			} 
+
+			if (close(data_fd) == -1) {
+				tmp_errno = errno;
+				perror("Close error");
+				exit(tmp_errno);
+			}
+
+			// exec and check if failed
+			execlp("more", "more", "-20", NULL);
+			fprintf(stderr, "%s\n", strerror(errno));
+			exit(errno);
+		default:
+			break;
+	}
+
+	if (wait(NULL) == -1) {
+		tmp_errno = errno;
+		perror("Wait error");
+		return tmp_errno;
+	}
+
+	return 0;
+
 }
 
 int manage_rcd(int socket_fd, char *path) {

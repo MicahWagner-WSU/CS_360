@@ -9,7 +9,7 @@ char *get_input(int file_desc, int buf_size);
 
 int handle_ctrl_cmd_D(int control_connection_fd);
 int handle_ctrl_cmd_C(int control_connection_fd, char *path);
-int handle_ctrl_cmd_L(int control_connection_fd);
+int handle_ctrl_cmd_L(int data_fd);
 int handle_ctrl_cmd_G(int control_connection_fd);
 int handle_ctrl_cmd_P(int control_connection_fd);
 int handle_ctrl_cmd_Q(int control_connection_fd);
@@ -130,7 +130,7 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 	printf("Child %d: Connection accepted from host %s\n", process_id, client_name);
 	fflush(stdout);
 
-	int connected_data_fd;
+	int connected_data_fd = 0;
 	for(;;) {
 		// for now ignore what the handler functions return, not sure if its necessary
 		char *input = get_input(control_connection_fd, READ_BUF_LEN);
@@ -141,6 +141,14 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 			handle_ctrl_cmd_C(control_connection_fd, &input[1]);
 		} else if (input[0] == 'D') {
 			connected_data_fd = handle_ctrl_cmd_D(control_connection_fd);
+			if (connected_data_fd < 0)
+				connected_data_fd = 0;
+		} else if (input[0] == 'L') {
+			if (connected_data_fd > 0) {
+				handle_ctrl_cmd_L(connected_data_fd);
+				close(connected_data_fd);
+				connected_data_fd = 0;
+			}
 
 		}
 
@@ -230,6 +238,50 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 
 	return connected_data_fd;
 
+}
+
+int handle_ctrl_cmd_L(int data_fd) {
+	int tmp_errno;
+
+	switch (fork()) {
+		case -1:
+			fprintf(stderr, "%s\n", strerror(errno));
+			exit(errno);
+		case 0:
+			// close stdin and dup to connect filters
+			if (close(1) == -1) {
+				tmp_errno = errno;
+				perror("Close error");
+				exit(tmp_errno);
+			}
+
+			if (dup(data_fd) == -1) {
+				tmp_errno = errno;
+				perror("FD duplication error");
+				exit(tmp_errno);
+			} 
+
+			if (close(data_fd) == -1) {
+				tmp_errno = errno;
+				perror("Close error");
+				exit(tmp_errno);
+			}
+
+			// exec and check if failed
+			execlp("ls", "ls", "-l", NULL);
+			fprintf(stderr, "%s\n", strerror(errno));
+			exit(errno);
+		default:
+			break;
+	}
+
+	if (wait(NULL) == -1) {
+		tmp_errno = errno;
+		perror("Wait error");
+		return tmp_errno;
+	}
+
+	return 0;
 }
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message) {
