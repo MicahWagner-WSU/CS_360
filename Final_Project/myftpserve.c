@@ -146,7 +146,6 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 		} else if (input[0] == 'L') {
 			if (connected_data_fd > 0) {
 				handle_ctrl_cmd_L(control_connection_fd, connected_data_fd);
-				close(connected_data_fd);
 				connected_data_fd = 0;
 			} else {
 				send_ctrl_command(control_connection_fd, 'E', "Attempted 'ls' without establishing data connection");
@@ -154,7 +153,6 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 		} else if (input[0] == 'G') {
 			if (connected_data_fd > 0) {
 				handle_ctrl_cmd_G(control_connection_fd, connected_data_fd, &input[1]);
-				close(connected_data_fd);
 				connected_data_fd = 0;
 			} else {
 				send_ctrl_command(control_connection_fd, 'E', "Attempted 'get' without establishing data connection");
@@ -276,6 +274,8 @@ int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 		default:
 			break;
 	}
+
+	close(data_fd);
 
 	if (wait(&status) == -1) {
 		tmp_errno = errno;
