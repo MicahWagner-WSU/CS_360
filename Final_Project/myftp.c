@@ -304,6 +304,17 @@ int manage_rls(int socket_fd, char *hostname) {
 
 	send_ctrl_command(socket_fd, 'L', NULL);
 
+	char *response = get_input(socket_fd, READ_BUF_LEN);
+
+	if (response[0] == 'A') {
+		free(response);
+	} else {
+		printf("Error response from server: %s\n", &response[1]);
+		free(response);
+		close(data_fd);
+		return -1;
+	}
+
 	switch (fork()) {
 		case -1:
 			fprintf(stderr, "%s\n", strerror(errno));
@@ -329,17 +340,6 @@ int manage_rls(int socket_fd, char *hostname) {
 		return tmp_errno;
 	}
 
-	char *response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (response[0] == 'A') {
-		free(response);
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
-		close(data_fd);
-		return -1;
-	}
-
 	close(data_fd);
 	return 0;
 
@@ -349,7 +349,7 @@ int manage_rcd(int socket_fd, char *path) {
 
 	int tmp_errno;
 	char *response;
-// this feels silly, maybe dont do seperate write calls, kind of lazy
+
 	send_ctrl_command(socket_fd, 'C', path);
 
 	response = get_input(socket_fd, READ_BUF_LEN);

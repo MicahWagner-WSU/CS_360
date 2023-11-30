@@ -148,12 +148,16 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 				handle_ctrl_cmd_L(control_connection_fd, connected_data_fd);
 				close(connected_data_fd);
 				connected_data_fd = 0;
+			} else {
+				send_ctrl_command(control_connection_fd, 'E', "Attempted 'ls' without establishing data connection");
 			}
 		} else if (input[0] == 'G') {
 			if (connected_data_fd > 0) {
 				handle_ctrl_cmd_G(control_connection_fd, connected_data_fd, &input[1]);
 				close(connected_data_fd);
 				connected_data_fd = 0;
+			} else {
+				send_ctrl_command(control_connection_fd, 'E', "Attempted 'get' without establishing data connection");
 			}
 		}
 
@@ -214,7 +218,6 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 	struct sockaddr_in ;
 	char port_string[NI_MAXSERV + 2] = { 0 };
 
-
 	data_fd = establish_listening_sock(0);
 
 	if(data_fd < 0) {
@@ -251,11 +254,13 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 	int tmp_errno, status;
 
+	send_ctrl_command(control_connection_fd, 'A', NULL);
+
+
 	switch (fork()) {
 		case -1:
 			tmp_errno = errno;
 			fprintf(stderr, "Error forking: %s\n", strerror(tmp_errno));
-			send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
 			exit(tmp_errno);
 		case 0:
 			// close stdin and dup to connect filters
@@ -267,7 +272,6 @@ int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 			execlp("ls", "ls", "-l", NULL);
 			tmp_errno = errno;
 			fprintf(stderr, "Error execing: %s\n", strerror(tmp_errno));
-			send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
 			exit(tmp_errno);
 		default:
 			break;
@@ -277,17 +281,13 @@ int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 		tmp_errno = errno;
 		perror("Wait error");
 		return tmp_errno;
-	}
-
-	if (status == 0) {
-		send_ctrl_command(control_connection_fd, 'A', NULL);
-	}
+	}	
 
 	return 0;
 }
 
 int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path) {
-	
+
 }
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message) {
