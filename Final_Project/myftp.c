@@ -9,7 +9,7 @@ int manage_cd(char *path);
 int manage_rcd(int socket_fd, char *path);
 int manage_ls();
 int manage_rls(int socket_fd, char *hostname);
-int manage_get(int socket_fd);
+int manage_get(int socket_fd, char *hostname, char *path);
 int manage_show(int socket_fd);
 int manage_put(int socket_fd);
 
@@ -22,6 +22,7 @@ things to do:
 fix: stop interchangeably doing string compares for 'A' and character compares, its dumb
 fix: make a more robust acknowledgement function explicitly checking for A, E, or 0
 fix: when cd takes no second arg, print "expecting a parameter"
+fix: dont just return errno if you dont use it, be more standard with your return types
 
 NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
 
@@ -78,10 +79,24 @@ int main(int argc, char **argv) {
 			second_arg = strtok(NULL, " ");
 			//not sure what to do with error number
 			//possibly print something else when we put no path
+			if (second_arg == NULL) {
+				fprintf(stderr, "Command error: expecting a parameter.\n");
+				printf("MFTP> ");
+				fflush(stdout);
+				free(input);
+				continue;
+			}
 			manage_cd(second_arg);
 		} else if (strcmp(first_arg, "rcd") == 0) {
 			//not sure what to do with the return values here, nothing for now.
 			second_arg = strtok(NULL, " ");
+			if (second_arg == NULL) {
+				fprintf(stderr, "Command error: expecting a parameter.\n");
+				printf("MFTP> ");
+				fflush(stdout);
+				free(input);
+				continue;
+			}
 			manage_rcd(socket_fd,second_arg);
 
 		} else if (strcmp(first_arg, "ls") == 0) {
@@ -92,7 +107,15 @@ int main(int argc, char **argv) {
 			manage_rls(socket_fd, hostname);
 
 		} else if (strcmp(first_arg, "get") == 0) {
-			return 0;
+			second_arg = strtok(NULL, " ");
+			if (second_arg == NULL) {
+				fprintf(stderr, "Command error: expecting a parameter.\n");
+				printf("MFTP> ");
+				fflush(stdout);
+				free(input);
+				continue;
+			}
+			manage_get(socket_fd, hostname, second_arg);
 		} else if (strcmp(first_arg, "show") == 0) {
 			return 0;
 		} else if (strcmp(first_arg, "put") == 0) {
@@ -339,6 +362,34 @@ int manage_rcd(int socket_fd, char *path) {
 		free(response);
 		return -1;
 	}
+
+}
+
+int manage_get(int socket_fd, char* hostname, char *path) {
+	int tmp_errno, data_fd, new_fd, actual;
+	char buff[READ_BUF_LEN];
+
+	if ((new_fd = open(path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
+		tmp_errno = errno;
+		perror("Open/creating local file");
+		return tmp_errno;
+	}
+
+	data_fd = establish_data_connection(socket_fd, hostname);
+	if (data_fd < 0) {
+		close(data_fd);
+		return -1;
+	}
+
+	send_ctrl_command(socket_fd, 'G', path);
+
+	// read write loop to a new opened file
+	while ((actual = read(data_fd, buff, READ_BUF_LEN)) > 0) {
+		write(new_fd, buff, actual);
+	}
+
+	// check if the server sent back an A or an E
+
 
 }
 

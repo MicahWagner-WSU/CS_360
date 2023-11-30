@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <fcntl.h>
 
 #define MY_PORT_NUMBER 49999
 #define BACKLOG 4

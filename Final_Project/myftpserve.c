@@ -10,7 +10,7 @@ char *get_input(int file_desc, int buf_size);
 int handle_ctrl_cmd_D(int control_connection_fd);
 int handle_ctrl_cmd_C(int control_connection_fd, char *path);
 int handle_ctrl_cmd_L(int control_connection_fd, int data_fd);
-int handle_ctrl_cmd_G(int control_connection_fd);
+int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path);
 int handle_ctrl_cmd_P(int control_connection_fd);
 int handle_ctrl_cmd_Q(int control_connection_fd);
 
@@ -149,7 +149,12 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 				close(connected_data_fd);
 				connected_data_fd = 0;
 			}
-
+		} else if (input[0] == 'G') {
+			if (connected_data_fd > 0) {
+				handle_ctrl_cmd_G(control_connection_fd, connected_data_fd, &input[1]);
+				close(connected_data_fd);
+				connected_data_fd = 0;
+			}
 		}
 
 		free(input);
@@ -279,6 +284,10 @@ int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 	}
 
 	return 0;
+}
+
+int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path) {
+	
 }
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message) {
