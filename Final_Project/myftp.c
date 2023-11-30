@@ -8,7 +8,7 @@ int manage_exit(int socket_fd);
 int manage_cd(char *path);
 int manage_rcd(int socket_fd, char *path);
 int manage_ls();
-int manage_rls(int socket_fd, int data_fd);
+int manage_rls(int socket_fd, char *hostname);
 int manage_get(int socket_fd);
 int manage_show(int socket_fd);
 int manage_put(int socket_fd);
@@ -19,8 +19,11 @@ int send_ctrl_command(int socket_fd, char command, char *optional_message);
 /*
 
 things to do:
-add a generic send_ctrl_command function, takes a command (A, E, L, etc.), next arguemnt is an optional string
+fix: stop interchangeably doing string compares for 'A' and character compares, its dumb
+fix: make a more robust acknowledgement function explicitly checking for A, E, or 0
+fix: when cd takes no second arg, print "expecting a parameter"
 
+NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
 
 */
 
@@ -59,9 +62,7 @@ int main(int argc, char **argv) {
 			return 0;
 		}
 
-		first_arg = strtok(input, " ");
-
-
+		first_arg = strtok(input, " \t\n");
 
 		// stub for commands
 		// anything in here is just for testing / getting used to things
@@ -87,14 +88,9 @@ int main(int argc, char **argv) {
 			//maybe just exit if we get an error? all errors seem super extreme
 			manage_ls();
 		} else if (strcmp(first_arg, "rls") == 0) {
-			// currently seg faults if we try to do this when server quits unexpectedly, fix
-			connected_data_fd = establish_data_connection(socket_fd, hostname);
+			// currently seg faults if we try to do this (data connection) when server quits unexpectedly, fix
+			manage_rls(socket_fd, hostname);
 
-			if (connected_data_fd > 0) {
-				manage_rls(socket_fd, connected_data_fd);
-				close(connected_data_fd);
-				connected_data_fd = 0;
-			}
 		} else if (strcmp(first_arg, "get") == 0) {
 			return 0;
 		} else if (strcmp(first_arg, "show") == 0) {
@@ -190,6 +186,12 @@ int manage_cd(char *path) {
 	int tmp_errno;
 	int cd_status;
 
+	if (access(path, R_OK) != 0) {
+		tmp_errno = errno;
+		perror("Change directory");
+		return tmp_errno;
+	}
+
 	if ((cd_status = chdir(path)) == 0) {
 		return 0;
 	} else {
@@ -268,8 +270,14 @@ int manage_ls() {
 	return 0;
 }
 
-int manage_rls(int socket_fd, int data_fd) {
-	int tmp_errno;
+int manage_rls(int socket_fd, char *hostname) {
+	int tmp_errno, data_fd;
+
+	data_fd = establish_data_connection(socket_fd, hostname);
+	if (data_fd < 0) {
+		close(data_fd);
+		return -1;
+	}
 
 	send_ctrl_command(socket_fd, 'L', NULL);
 
@@ -294,9 +302,22 @@ int manage_rls(int socket_fd, int data_fd) {
 	if (wait(NULL) == -1) {
 		tmp_errno = errno;
 		perror("Wait error");
+		close(data_fd);
 		return tmp_errno;
 	}
 
+	char *response = get_input(socket_fd, READ_BUF_LEN);
+
+	if (response[0] == 'A') {
+		free(response);
+	} else {
+		printf("Error response from server: %s\n", &response[1]);
+		free(response);
+		close(data_fd);
+		return -1;
+	}
+
+	close(data_fd);
 	return 0;
 
 }
@@ -334,13 +355,23 @@ int establish_data_connection(int socket_fd, char *hostname) {
 
 	response = get_input(socket_fd, READ_BUF_LEN);
 
+	if (response == NULL) {
+		if(errno != 0) {
+			tmp_errno = errno;
+			perror("Input response error");
+			free(response);
+			exit(-errno); 
+		} else {
+			printf("Error: data socket closed unexpectedly\n");
+			exit(-1);
+		}
+	}
+
 	if (response[0] == 'A') {
 		int port_num;
 
 		sscanf(&response[1], "%d", &port_num);
 		int data_fd = establish_socket_connection(hostname, port_num);
-
-		printf("A%d\n", port_num);
 
 		if (socket_fd < 0)
 			return socket_fd;
@@ -348,17 +379,9 @@ int establish_data_connection(int socket_fd, char *hostname) {
 		return data_fd;
 
 	} else {
-
-		if(errno != 0) {
-			tmp_errno = errno;
-			perror("Input response error");
-			free(response);
-			return -errno; 
-		} else {
-			printf("Error response from server: %s\n", &response[1]);
-			free(response);
-			return -1;
-		}
+		printf("Error response from server: %s\n", &response[1]);
+		free(response);
+		return -1;
 	}
 
 

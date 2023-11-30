@@ -9,7 +9,7 @@ char *get_input(int file_desc, int buf_size);
 
 int handle_ctrl_cmd_D(int control_connection_fd);
 int handle_ctrl_cmd_C(int control_connection_fd, char *path);
-int handle_ctrl_cmd_L(int data_fd);
+int handle_ctrl_cmd_L(int control_connection_fd, int data_fd);
 int handle_ctrl_cmd_G(int control_connection_fd);
 int handle_ctrl_cmd_P(int control_connection_fd);
 int handle_ctrl_cmd_Q(int control_connection_fd);
@@ -145,7 +145,7 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 				connected_data_fd = 0;
 		} else if (input[0] == 'L') {
 			if (connected_data_fd > 0) {
-				handle_ctrl_cmd_L(connected_data_fd);
+				handle_ctrl_cmd_L(control_connection_fd, connected_data_fd);
 				close(connected_data_fd);
 				connected_data_fd = 0;
 			}
@@ -165,6 +165,13 @@ int handle_ctrl_cmd_C(int control_connection_fd, char *path) {
 	int tmp_errno;
 	int cd_status;
 
+	if (access(path, R_OK) != 0) {
+		tmp_errno = errno;
+		fprintf(stderr, "cd to %s failed with error message(a): %s\n", path, strerror(tmp_errno));
+		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
+		return tmp_errno;
+	}
+
 	if ((cd_status = chdir(path)) == 0) {
 		send_ctrl_command(control_connection_fd, 'A', NULL);
 
@@ -174,7 +181,7 @@ int handle_ctrl_cmd_C(int control_connection_fd, char *path) {
 		return 0;
 	} else {
 		tmp_errno = errno;
-		perror("Change directory error");
+		fprintf(stderr, "cd to %s failed with error message(c): %s\n", path, strerror(tmp_errno));
 		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
 		return tmp_errno;
 	}
@@ -220,10 +227,6 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 	}
 
 	sprintf(port_string, "%d", ntohs(addr.sin_port));
-	printf("listening on port %s\n", port_string);
-
-
-	port_string[strlen(port_string)] = '\n';
 
 	send_ctrl_command(control_connection_fd, 'A', port_string);
 
@@ -240,45 +243,39 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 
 }
 
-int handle_ctrl_cmd_L(int data_fd) {
-	int tmp_errno;
+int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
+	int tmp_errno, status;
 
 	switch (fork()) {
 		case -1:
-			fprintf(stderr, "%s\n", strerror(errno));
-			exit(errno);
+			tmp_errno = errno;
+			fprintf(stderr, "Error forking: %s\n", strerror(tmp_errno));
+			send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
+			exit(tmp_errno);
 		case 0:
 			// close stdin and dup to connect filters
-			if (close(1) == -1) {
-				tmp_errno = errno;
-				perror("Close error");
-				exit(tmp_errno);
-			}
-
-			if (dup(data_fd) == -1) {
-				tmp_errno = errno;
-				perror("FD duplication error");
-				exit(tmp_errno);
-			} 
-
-			if (close(data_fd) == -1) {
-				tmp_errno = errno;
-				perror("Close error");
-				exit(tmp_errno);
-			}
+			close(1);
+			dup(data_fd);
+			close(data_fd);
 
 			// exec and check if failed
 			execlp("ls", "ls", "-l", NULL);
-			fprintf(stderr, "%s\n", strerror(errno));
-			exit(errno);
+			tmp_errno = errno;
+			fprintf(stderr, "Error execing: %s\n", strerror(tmp_errno));
+			send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
+			exit(tmp_errno);
 		default:
 			break;
 	}
 
-	if (wait(NULL) == -1) {
+	if (wait(&status) == -1) {
 		tmp_errno = errno;
 		perror("Wait error");
 		return tmp_errno;
+	}
+
+	if (status == 0) {
+		send_ctrl_command(control_connection_fd, 'A', NULL);
 	}
 
 	return 0;
