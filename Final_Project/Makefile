@@ -1,4 +1,4 @@
-mftpserve mftp: myftp.o myftpserve.o
+mftpserve mftp: myftp.o myftpserve.o myftp.h
 	cc -o mftpserve myftpserve.o
 	cc -o mftp myftp.o
 mftp.o: myftp.c myftp.h

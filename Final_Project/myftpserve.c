@@ -287,7 +287,60 @@ int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 }
 
 int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path) {
+	int actual, tmp_errno, get_fd;
+	struct stat area, *s = &area;
+	char buff[READ_BUF_LEN];
+	// get the status of the given file
+	if (lstat(path, s) == 0){
+		// base case 1 is that we hit a regular file
+		if (S_ISREG(s->st_mode)) {
+			// cehck if its readable by us
+			if (access(path, R_OK) == -1) {
+				send_ctrl_command(control_connection_fd, 'E', strerror(errno));	
+				close(connected_data_fd);
+				return -1;			
+			} else {
+				printf("Child %d: Reading file %s\n", getpid(), path);
+			}
 
+		} else {
+			send_ctrl_command(control_connection_fd, 'E', "File is a directory");
+			close(connected_data_fd);
+			return -1;
+		}
+	// getting status of file failed for some reason 
+	} else {
+		tmp_errno = errno;
+		perror("Error lstating");
+		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
+		close(connected_data_fd);
+		return -1;
+	}
+
+	if ((get_fd = open(path, O_RDONLY)) == -1) {
+		tmp_errno = errno;
+		perror("Open/creating local file");
+		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
+		return -1;
+	}
+
+	send_ctrl_command(control_connection_fd, 'A', NULL);
+
+	while((actual = read(get_fd, buff, READ_BUF_LEN)) > 0) {
+		write(connected_data_fd, buff, actual);
+	}
+
+	if (actual == -1) {
+		perror("Open/creating local file");
+		close(connected_data_fd);
+		close(get_fd);
+		return -1;
+	}
+
+	close(connected_data_fd);
+	close(get_fd);
+
+	return 0;
 }
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message) {

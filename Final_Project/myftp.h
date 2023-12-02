@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <libgen.h>
 
 #define MY_PORT_NUMBER 49999
 #define BACKLOG 4

@@ -22,7 +22,7 @@ things to do:
 fix: stop interchangeably doing string compares for 'A' and character compares, its dumb
 fix: make a more robust acknowledgement function explicitly checking for A, E, or 0
 fix: when cd takes no second arg, print "expecting a parameter"
-fix: dont just return errno if you dont use it, be more standard with your return types
+fix: dont just return errno if you dont use it, be more standard with your return types (possibly just return -1)
 
 NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
 
@@ -368,29 +368,68 @@ int manage_rcd(int socket_fd, char *path) {
 int manage_get(int socket_fd, char* hostname, char *path) {
 	int tmp_errno, data_fd, new_fd, actual;
 	char buff[READ_BUF_LEN];
+	struct stat area, *s = &area;
+	char *response;
+	char *base_path = basename(path);
 
-	if ((new_fd = open(path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
-		tmp_errno = errno;
+	// get the status of the given file
+	if (lstat(base_path, s) == 0){
+		// base case 1 is that we hit a regular file
+		if (S_ISREG(s->st_mode)) {
+			fprintf(stderr, "Open/creating local file: File exists\n");
+			return -1;
+		} 
+	// getting status of file failed for some reason 
+	} else if (errno != ENOENT){
+		perror("Error lstating");
+		return -1;
+	}
+
+	if ((new_fd = open(base_path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
 		perror("Open/creating local file");
-		return tmp_errno;
+		return -1;
 	}
 
 	data_fd = establish_data_connection(socket_fd, hostname);
 	if (data_fd < 0) {
 		close(data_fd);
+		close(new_fd);
+		unlink(base_path);
 		return -1;
 	}
 
 	send_ctrl_command(socket_fd, 'G', path);
+
+	response = get_input(socket_fd, READ_BUF_LEN);
+
+	if (strcmp(response, "A") == 0) {
+		free(response);
+	} else {
+		printf("Error response from server: %s\n", &response[1]);
+		free(response);
+		close(data_fd);
+		close(new_fd);
+		unlink(base_path);
+		return -1;
+	}
+	
 
 	// read write loop to a new opened file
 	while ((actual = read(data_fd, buff, READ_BUF_LEN)) > 0) {
 		write(new_fd, buff, actual);
 	}
 
-	// check if the server sent back an A or an E
+	if (actual == -1) {
+		perror("Open/creating local file");
+		close(data_fd);
+		close(new_fd);
+		unlink(base_path);
+		return -1;
+	}
 
-
+	close(data_fd);
+	close(new_fd);
+	return 0;
 }
 
 int establish_data_connection(int socket_fd, char *hostname) {
