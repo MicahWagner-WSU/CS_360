@@ -372,29 +372,17 @@ int manage_get(int socket_fd, char* hostname, char *path) {
 	char *response;
 	char *base_path = basename(path);
 
-	// get the status of the given file
-	if (lstat(base_path, s) == 0){
-		// base case 1 is that we hit a regular file
-		if (S_ISREG(s->st_mode)) {
-			fprintf(stderr, "Open/creating local file: File exists\n");
-			return -1;
-		} 
-	// getting status of file failed for some reason 
-	} else if (errno != ENOENT){
-		perror("Error lstating");
-		return -1;
-	}
 
-	if ((new_fd = open(base_path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
-		perror("Open/creating local file");
+	//NOTE, just do an access here, we know folders cant have the same name as files
+	// get the status of the given file
+	if (access(base_path, F_OK) == 0){
+		fprintf(stderr, "Open/creating local file: File already exists \n");
 		return -1;
 	}
 
 	data_fd = establish_data_connection(socket_fd, hostname);
 	if (data_fd < 0) {
 		close(data_fd);
-		close(new_fd);
-		unlink(base_path);
 		return -1;
 	}
 
@@ -408,11 +396,13 @@ int manage_get(int socket_fd, char* hostname, char *path) {
 		printf("Error response from server: %s\n", &response[1]);
 		free(response);
 		close(data_fd);
-		close(new_fd);
-		unlink(base_path);
 		return -1;
 	}
-	
+
+	if ((new_fd = open(base_path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
+		perror("Open/creating local file");
+		return -1;
+	}
 
 	// read write loop to a new opened file
 	while ((actual = read(data_fd, buff, READ_BUF_LEN)) > 0) {

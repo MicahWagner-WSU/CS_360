@@ -303,8 +303,12 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 				printf("Child %d: Reading file %s\n", getpid(), path);
 			}
 
-		} else {
+		} else if (S_ISDIR(s->st_mode)){
 			send_ctrl_command(control_connection_fd, 'E', "File is a directory");
+			close(connected_data_fd);
+			return -1;
+		} else {
+			send_ctrl_command(control_connection_fd, 'E', "File is a special file");
 			close(connected_data_fd);
 			return -1;
 		}
