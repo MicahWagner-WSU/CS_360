@@ -11,7 +11,7 @@ int handle_ctrl_cmd_D(int control_connection_fd);
 int handle_ctrl_cmd_C(int control_connection_fd, char *path);
 int handle_ctrl_cmd_L(int control_connection_fd, int data_fd);
 int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path);
-int handle_ctrl_cmd_P(int control_connection_fd);
+int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path);
 int handle_ctrl_cmd_Q(int control_connection_fd);
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message); 
@@ -156,6 +156,13 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 				connected_data_fd = 0;
 			} else {
 				send_ctrl_command(control_connection_fd, 'E', "Attempted 'get' without establishing data connection");
+			}
+		} else if (input[0] == 'P') {
+			if (connected_data_fd > 0) {
+				handle_ctrl_cmd_P(control_connection_fd, connected_data_fd, &input[1]);
+				connected_data_fd = 0;
+			} else {
+				send_ctrl_command(control_connection_fd, 'E', "Attempted 'put' without establishing data connection");
 			}
 		}
 
@@ -323,7 +330,7 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 
 	if ((get_fd = open(path, O_RDONLY)) == -1) {
 		tmp_errno = errno;
-		perror("Open/creating local file");
+		perror("Open local file for reading");
 		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
 		return -1;
 	}
@@ -346,6 +353,45 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 
 	return 0;
 }
+
+int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path) {
+	int tmp_errno, new_fd, actual;
+	char buff[READ_BUF_LEN];
+
+	if (access(path, F_OK) == 0){
+		send_ctrl_command(control_connection_fd, 'E', "File exists");
+		close(connected_data_fd);
+		return -1;
+	}
+
+	if ((new_fd = open(path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
+		tmp_errno = errno;
+		perror("Open/creating local file");
+		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
+		close(connected_data_fd);
+		return -1;
+	}
+
+	send_ctrl_command(control_connection_fd, 'A', NULL);
+
+	while ((actual = read(connected_data_fd, buff, READ_BUF_LEN)) > 0) {
+		write(new_fd, buff, actual);
+	}
+
+	if (actual == -1) {
+		perror("Open/creating local file");
+		close(connected_data_fd);
+		close(new_fd);
+		unlink(path);
+		return -1;
+	}
+
+	close(connected_data_fd);
+	close(new_fd);
+	return 0;
+
+}
+
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message) {
 	int tmp_errno;

@@ -11,7 +11,7 @@ int manage_ls();
 int manage_rls(int socket_fd, char *hostname);
 int manage_get(int socket_fd, char *hostname, char *path);
 int manage_show(int socket_fd, char *hostname, char *path);
-int manage_put(int socket_fd);
+int manage_put(int socket_fd, char *hostname, char *path);
 
 int establish_data_connection(int socket_fd, char *hostname);
 int send_ctrl_command(int socket_fd, char command, char *optional_message);
@@ -23,6 +23,7 @@ fix: stop interchangeably doing string compares for 'A' and character compares, 
 fix: make a more robust acknowledgement function explicitly checking for A, E, or 0
 fix: when cd takes no second arg, print "expecting a parameter"
 fix: dont just return errno if you dont use it, be more standard with your return types (possibly just return -1, or void)
+fix: edge case of sending none base name pathname to server
 
 NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
 
@@ -127,7 +128,15 @@ int main(int argc, char **argv) {
 			}
 			manage_show(socket_fd, hostname, second_arg);
 		} else if (strcmp(first_arg, "put") == 0) {
-			return 0;
+			second_arg = strtok(NULL, " ");
+			if (second_arg == NULL) {
+				fprintf(stderr, "Command error: expecting a parameter.\n");
+				printf("MFTP> ");
+				fflush(stdout);
+				free(input);
+				continue;
+			}
+			manage_put(socket_fd, hostname, second_arg);
 		} else {
 			printf("Command '%s' is unknown - ignored\n", first_arg);
 		}
@@ -377,7 +386,6 @@ int manage_rcd(int socket_fd, char *path) {
 int manage_get(int socket_fd, char* hostname, char *path) {
 	int tmp_errno, data_fd, new_fd, actual;
 	char buff[READ_BUF_LEN];
-	struct stat area, *s = &area;
 	char *response;
 	char *base_path = basename(path);
 
@@ -484,6 +492,73 @@ int manage_show(int socket_fd, char *hostname, char *path) {
 
 	return 0;
 
+}
+
+int manage_put(int socket_fd, char* hostname, char *path) {
+	int tmp_errno, data_fd, put_fd, actual;
+	char buff[READ_BUF_LEN];
+	struct stat area, *s = &area;
+	char *response;
+	char *base_path = basename(path);
+
+	if (access(path, F_OK) != 0){
+		perror("Opening file for reading");
+		return -1;
+	}
+
+	// get the status of the given file
+	if (lstat(path, s) == 0){
+		// base case 1 is that we hit a regular file
+		if (!S_ISREG(s->st_mode) || S_ISDIR(s->st_mode)) {
+			fprintf(stderr, "Local file comp is a directory, command ignored.\n");
+			return -1;
+		}
+	// getting status of file failed for some reason 
+	} else {
+		perror("Error lstating");
+		return -1;
+	}
+
+	data_fd = establish_data_connection(socket_fd, hostname);
+	if (data_fd < 0) {
+		close(data_fd);
+		return -1;
+	}
+
+	if ((put_fd = open(path, O_RDONLY)) == -1) {
+		perror("Opening file for reading");
+		return -1;
+	}
+
+	send_ctrl_command(socket_fd, 'P', base_path);
+
+	response = get_input(socket_fd, READ_BUF_LEN);
+
+	if (strcmp(response, "A") == 0) {
+		free(response);
+	} else {
+		printf("Error response from server: %s\n", &response[1]);
+		free(response);
+		close(put_fd);
+		close(data_fd);
+		return -1;
+	}
+
+	// read write loop to a new opened file
+	while ((actual = read(put_fd, buff, READ_BUF_LEN)) > 0) {
+		write(data_fd, buff, actual);
+	}
+
+	if (actual == -1) {
+		perror("reading from file");
+		close(data_fd);
+		close(put_fd);
+		return -1;
+	}
+
+	close(data_fd);
+	close(put_fd);
+	return 0;
 }
 
 int establish_data_connection(int socket_fd, char *hostname) {
