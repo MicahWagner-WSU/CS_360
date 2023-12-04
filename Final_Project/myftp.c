@@ -10,7 +10,7 @@ int manage_rcd(int socket_fd, char *path);
 int manage_ls();
 int manage_rls(int socket_fd, char *hostname);
 int manage_get(int socket_fd, char *hostname, char *path);
-int manage_show(int socket_fd);
+int manage_show(int socket_fd, char *hostname, char *path);
 int manage_put(int socket_fd);
 
 int establish_data_connection(int socket_fd, char *hostname);
@@ -22,7 +22,7 @@ things to do:
 fix: stop interchangeably doing string compares for 'A' and character compares, its dumb
 fix: make a more robust acknowledgement function explicitly checking for A, E, or 0
 fix: when cd takes no second arg, print "expecting a parameter"
-fix: dont just return errno if you dont use it, be more standard with your return types (possibly just return -1)
+fix: dont just return errno if you dont use it, be more standard with your return types (possibly just return -1, or void)
 
 NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
 
@@ -117,7 +117,15 @@ int main(int argc, char **argv) {
 			}
 			manage_get(socket_fd, hostname, second_arg);
 		} else if (strcmp(first_arg, "show") == 0) {
-			return 0;
+			second_arg = strtok(NULL, " ");
+			if (second_arg == NULL) {
+				fprintf(stderr, "Command error: expecting a parameter.\n");
+				printf("MFTP> ");
+				fflush(stdout);
+				free(input);
+				continue;
+			}
+			manage_show(socket_fd, hostname, second_arg);
 		} else if (strcmp(first_arg, "put") == 0) {
 			return 0;
 		} else {
@@ -333,6 +341,8 @@ int manage_rls(int socket_fd, char *hostname) {
 			break;
 	}
 
+	close(data_fd);
+
 	if (wait(NULL) == -1) {
 		tmp_errno = errno;
 		perror("Wait error");
@@ -340,7 +350,6 @@ int manage_rls(int socket_fd, char *hostname) {
 		return tmp_errno;
 	}
 
-	close(data_fd);
 	return 0;
 
 }
@@ -420,6 +429,61 @@ int manage_get(int socket_fd, char* hostname, char *path) {
 	close(data_fd);
 	close(new_fd);
 	return 0;
+}
+
+int manage_show(int socket_fd, char *hostname, char *path) {
+	char *base_path = basename(path);
+	char *response;
+	int tmp_errno, data_fd;
+
+	data_fd = establish_data_connection(socket_fd, hostname);
+	if (data_fd < 0) {
+		close(data_fd);
+		return -1;
+	}
+
+	send_ctrl_command(socket_fd, 'G', path);
+
+	response = get_input(socket_fd, READ_BUF_LEN);
+
+	if (strcmp(response, "A") == 0) {
+		free(response);
+	} else {
+		printf("Error response from server: %s\n", &response[1]);
+		free(response);
+		close(data_fd);
+		return -1;
+	}
+
+	switch (fork()) {
+		case -1:
+			fprintf(stderr, "%s\n", strerror(errno));
+			exit(errno);
+		case 0:
+			// close stdin and dup to connect filters
+			close(0);
+			dup(data_fd);
+			close(data_fd);
+
+			// exec and check if failed
+			execlp("more", "more", "-20", NULL);
+			fprintf(stderr, "%s\n", strerror(errno));
+			exit(errno);
+		default:
+			break;
+	}
+
+	close(data_fd);
+
+	if (wait(NULL) == -1) {
+		tmp_errno = errno;
+		perror("Wait error");
+		close(data_fd);
+		return tmp_errno;
+	}
+
+	return 0;
+
 }
 
 int establish_data_connection(int socket_fd, char *hostname) {

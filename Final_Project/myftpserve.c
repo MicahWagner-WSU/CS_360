@@ -261,7 +261,7 @@ int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 			fprintf(stderr, "Error forking: %s\n", strerror(tmp_errno));
 			exit(tmp_errno);
 		case 0:
-			// close stdin and dup to connect filters
+			// close stdout and dup to connect filters
 			close(1);
 			dup(data_fd);
 			close(data_fd);
