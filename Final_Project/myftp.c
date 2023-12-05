@@ -15,6 +15,7 @@ int manage_put(int socket_fd, char *hostname, char *path);
 
 int establish_data_connection(int socket_fd, char *hostname);
 int send_ctrl_command(int socket_fd, char command, char *optional_message);
+int manage_response(int socket_fd);
 
 /*
 
@@ -24,6 +25,7 @@ fix: make a more robust acknowledgement function explicitly checking for A, E, o
 fix: when cd takes no second arg, print "expecting a parameter"
 fix: dont just return errno if you dont use it, be more standard with your return types (possibly just return -1, or void)
 fix: edge case of sending none base name pathname to server
+fix: server and client exiting when socket connection closes
 
 NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
 
@@ -189,7 +191,7 @@ int establish_socket_connection(char *hostname, int port_num) {
 }
 // 0 success, above 0 errno from client, below 0 error from server
 int manage_exit(int socket_fd) {
-	int tmp_errno;
+	int tmp_errno, status;
 
 	if ((tmp_errno = send_ctrl_command(socket_fd, 'Q', NULL)) != 0) {
 		tmp_errno = errno;
@@ -197,28 +199,8 @@ int manage_exit(int socket_fd) {
 		exit(errno); 
 	}
 
-	char *response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (response == NULL) {
-		if (errno) {
-			tmp_errno = errno;
-			perror("Error reading");
-			exit(errno); 
-		} else {
-			printf("Error: control socket closed unexpectedly\n");
-			exit(-1);
-		}
-
-	}
-
-	if (strcmp(response, "A") == 0) {
-		free(response);
-		exit(0);
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
-		exit(-1);
-	}
+	manage_response(socket_fd);
+	exit(0);
 }
 
 int manage_cd(char *path) {
@@ -321,16 +303,11 @@ int manage_rls(int socket_fd, char *hostname) {
 
 	send_ctrl_command(socket_fd, 'L', NULL);
 
-	char *response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (response[0] == 'A') {
-		free(response);
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
+	if (manage_response(socket_fd) != 0) {
 		close(data_fd);
 		return -1;
 	}
+	
 
 	switch (fork()) {
 		case -1:
@@ -370,16 +347,10 @@ int manage_rcd(int socket_fd, char *path) {
 
 	send_ctrl_command(socket_fd, 'C', path);
 
-	response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (strcmp(response, "A") == 0) {
-		free(response);
-		return 0;
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
+	if(manage_response(socket_fd) != 0)
 		return -1;
-	}
+
+	return 0;
 
 }
 
@@ -405,19 +376,14 @@ int manage_get(int socket_fd, char* hostname, char *path) {
 
 	send_ctrl_command(socket_fd, 'G', path);
 
-	response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (strcmp(response, "A") == 0) {
-		free(response);
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
+	if (manage_response(socket_fd) != 0) {
 		close(data_fd);
 		return -1;
 	}
 
 	if ((new_fd = open(base_path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
 		perror("Open/creating local file");
+		close(data_fd);
 		return -1;
 	}
 
@@ -452,13 +418,7 @@ int manage_show(int socket_fd, char *hostname, char *path) {
 
 	send_ctrl_command(socket_fd, 'G', path);
 
-	response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (strcmp(response, "A") == 0) {
-		free(response);
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
+	if (manage_response(socket_fd) != 0) {
 		close(data_fd);
 		return -1;
 	}
@@ -532,13 +492,7 @@ int manage_put(int socket_fd, char* hostname, char *path) {
 
 	send_ctrl_command(socket_fd, 'P', base_path);
 
-	response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (strcmp(response, "A") == 0) {
-		free(response);
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
+	if (manage_response(socket_fd) != 0) {
 		close(put_fd);
 		close(data_fd);
 		return -1;
@@ -562,9 +516,8 @@ int manage_put(int socket_fd, char* hostname, char *path) {
 }
 
 int establish_data_connection(int socket_fd, char *hostname) {
-	int tmp_errno;
+	int tmp_errno, data_fd, port_num;
 	char *response;
-
 
 	if (write(socket_fd, "D\n", 2) == -1) {
 		tmp_errno = errno;
@@ -572,40 +525,56 @@ int establish_data_connection(int socket_fd, char *hostname) {
 		return -errno; 
 	}
 
-	response = get_input(socket_fd, READ_BUF_LEN);
-
-	if (response == NULL) {
-		if(errno != 0) {
-			tmp_errno = errno;
-			perror("Input response error");
-			free(response);
-			exit(-errno); 
-		} else {
-			printf("Error: data socket closed unexpectedly\n");
-			exit(-1);
-		}
-	}
-
-	if (response[0] == 'A') {
-		int port_num;
-
-		sscanf(&response[1], "%d", &port_num);
-		int data_fd = establish_socket_connection(hostname, port_num);
-
-		if (socket_fd < 0)
-			return socket_fd;
-
-		return data_fd;
-
-	} else {
-		printf("Error response from server: %s\n", &response[1]);
-		free(response);
+	if ((port_num = manage_response(socket_fd)) < 0) {
 		return -1;
 	}
+
+	data_fd = establish_socket_connection(hostname, port_num);
+
+	if (socket_fd < 0)
+		return socket_fd;
+
+	return data_fd;
 
 
 }
 
+int manage_response(int socket_fd) {
+
+	char *response = get_input(socket_fd, READ_BUF_LEN);
+	int port_num;
+
+
+	if (response == NULL) {
+		if (errno) {
+			perror("Error reading");
+			exit(EXIT_FAILURE); 
+		} else {
+			printf("Error: control socket closed unexpectedly\n");
+			exit(EXIT_FAILURE);
+		}
+
+	}
+
+	if (response[0] == 'A') {
+		if(strlen(response) != 1) {
+			sscanf(&response[1], "%d", &port_num);
+			free(response);
+			return port_num;
+		}
+
+		free(response);
+		return 0;
+	} else if (response[0] == 'E') {
+		fprintf(stderr, "Error response from server: %s\n", &response[1]);
+		free(response);
+		return -1;
+	} else {
+		fprintf(stderr, "Expected E or A from server, instead received %s\n", response);
+		free(response);
+		exit(EXIT_FAILURE);
+	}
+}
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message) {
 	int tmp_errno;
