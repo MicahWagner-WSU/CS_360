@@ -20,14 +20,11 @@ int manage_response(int socket_fd);
 /*
 
 things to do:
-fix: stop interchangeably doing string compares for 'A' and character compares, its dumb
-fix: make a more robust acknowledgement function explicitly checking for A, E, or 0
-fix: when cd takes no second arg, print "expecting a parameter"
 fix: dont just return errno if you dont use it, be more standard with your return types (possibly just return -1, or void)
 fix: edge case of sending none base name pathname to server
-fix: server and client exiting when socket connection closes
 
 NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
+NOTE: might want to add a fatal error function that prints a fatal message and quits for
 
 */
 

@@ -16,13 +16,6 @@ int handle_ctrl_cmd_Q(int control_connection_fd);
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message); 
 
-/*
-
-
-NOTE: probably get rid flushing, add a generic send_ctrl_command function, takes a command (A, E, L, etc.), next arguemnt is an optional string
-
-*/
-
 int main(int argc, char **argv) {
 
 	int listen_fd, connection_fd, length, child_pid, tmp_errno;
@@ -128,12 +121,24 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 	}
 
 	printf("Child %d: Connection accepted from host %s\n", process_id, client_name);
-	fflush(stdout);
 
 	int connected_data_fd = 0;
 	for(;;) {
 		// for now ignore what the handler functions return, not sure if its necessary
 		char *input = get_input(control_connection_fd, READ_BUF_LEN);
+
+		if (input == NULL) {
+			tmp_errno = errno;
+			if (tmp_errno == 0) {
+				fprintf(stderr, "Child %d: Control Socket EOF detected, exiting \n", getpid());
+				fprintf(stderr, "Child %d: Fatal error, exiting \n", getpid());
+				exit(tmp_errno);
+			} else {
+				fprintf(stderr, "Child %d: Error reading from control socket, exiting \n", getpid());
+				exit(tmp_errno);
+			}
+		}
+
 		if (input[0] == 'Q') {
 			free(input);
 			handle_ctrl_cmd_Q(control_connection_fd);
@@ -148,7 +153,7 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 				handle_ctrl_cmd_L(control_connection_fd, connected_data_fd);
 				connected_data_fd = 0;
 			} else {
-				send_ctrl_command(control_connection_fd, 'E', "Attempted 'ls' without establishing data connection");
+				send_ctrl_command(control_connection_fd, 'E', "Attempted 'rls' without establishing data connection");
 			}
 		} else if (input[0] == 'G') {
 			if (connected_data_fd > 0) {
@@ -190,7 +195,6 @@ int handle_ctrl_cmd_C(int control_connection_fd, char *path) {
 		send_ctrl_command(control_connection_fd, 'A', NULL);
 
 		printf("Child %d: changed directory to %s\n", getpid(), path);
-		fflush(stdout);
 
 		return 0;
 	} else {
@@ -211,7 +215,6 @@ int handle_ctrl_cmd_Q(int control_connection_fd) {
 	}
 
 	printf("Child %d: Quitting\n", getpid());
-	fflush(stdout);
 
 	exit(0);
 }
@@ -337,6 +340,8 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 
 	send_ctrl_command(control_connection_fd, 'A', NULL);
 
+	printf("Child %d: transmitting file %s to client\n", getpid(), path);
+
 	while((actual = read(get_fd, buff, READ_BUF_LEN)) > 0) {
 		write(connected_data_fd, buff, actual);
 	}
@@ -373,6 +378,8 @@ int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *pa
 	}
 
 	send_ctrl_command(control_connection_fd, 'A', NULL);
+
+	printf("Child %d: receiving file %s from client\n", getpid(), path);
 
 	while ((actual = read(connected_data_fd, buff, READ_BUF_LEN)) > 0) {
 		write(new_fd, buff, actual);
