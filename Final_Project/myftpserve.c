@@ -367,10 +367,10 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 
 int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path) {
 	int tmp_errno, new_fd, actual;
-	char *tmp = path;
+	char *tmp;
 	char buff[READ_BUF_LEN];
 
-	tmp = dirname(tmp);
+	tmp = dirname(path);
 
 	if (strcmp(tmp, ".") != 0) {
 		send_ctrl_command(control_connection_fd, 'E', "Error, server was sent a pathname.  Base file name expected.");
