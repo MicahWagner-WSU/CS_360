@@ -476,14 +476,15 @@ int manage_put(int socket_fd, char* hostname, char *path) {
 		return -1;
 	}
 
-	data_fd = establish_data_connection(socket_fd, hostname);
-	if (data_fd < 0) {
-		close(data_fd);
+	if ((put_fd = open(path, O_RDONLY)) == -1) {
+		perror("Opening file for reading");
 		return -1;
 	}
 
-	if ((put_fd = open(path, O_RDONLY)) == -1) {
-		perror("Opening file for reading");
+	data_fd = establish_data_connection(socket_fd, hostname);
+	if (data_fd < 0) {
+		close(put_fd);
+		close(data_fd);
 		return -1;
 	}
 

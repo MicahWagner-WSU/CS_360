@@ -145,6 +145,12 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 		} else if (input[0] == 'C') {
 			handle_ctrl_cmd_C(control_connection_fd, &input[1]);
 		} else if (input[0] == 'D') {
+			if (connected_data_fd > 0) {
+				send_ctrl_command(control_connection_fd, 'E', "Unexpected D command, data connection exists");
+				fprintf(stderr, "Child %d: Client issued redundant D command. Fatal error, exiting\n", getpid());
+				exit(0);
+			}
+
 			connected_data_fd = handle_ctrl_cmd_D(control_connection_fd);
 			if (connected_data_fd < 0)
 				connected_data_fd = 0;
@@ -361,7 +367,16 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 
 int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path) {
 	int tmp_errno, new_fd, actual;
+	char *tmp = path;
 	char buff[READ_BUF_LEN];
+
+	tmp = dirname(tmp);
+
+	if (strcmp(tmp, ".") != 0) {
+		send_ctrl_command(control_connection_fd, 'E', "Error, server was sent a pathname.  Base file name expected.");
+		close(connected_data_fd);
+		return -1;
+	}
 
 	if (access(path, F_OK) == 0){
 		send_ctrl_command(control_connection_fd, 'E', "File exists");
