@@ -324,14 +324,16 @@ void manage_get(int socket_fd, char* hostname, char *path) {
 	char *response;
 	char *base_path = basename(path);
 
-	if (access(base_path, F_OK) == 0){
-		fprintf(stderr, "Open/creating local file: File already exists \n");
+	if ((new_fd = open(base_path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
+		perror("Open/creating local file");
 		return;
 	}
 
 	data_fd = establish_data_connection(socket_fd, hostname);
 	if (data_fd < 0) {
 		close(data_fd);
+		close(new_fd);
+		unlink(base_path);
 		return;
 	}
 
@@ -339,12 +341,8 @@ void manage_get(int socket_fd, char* hostname, char *path) {
 
 	if (manage_response(socket_fd) != 0) {
 		close(data_fd);
-		return;
-	}
-
-	if ((new_fd = open(base_path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
-		perror("Open/creating local file");
-		close(data_fd);
+		close(new_fd);
+		unlink(base_path);
 		return;
 	}
 
