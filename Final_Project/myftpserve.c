@@ -125,7 +125,7 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 
 	int connected_data_fd = 0;
 	for(;;) {
-		// for now ignore what the handler functions return, not sure if its necessary
+
 		char *input = get_input(control_connection_fd, READ_BUF_LEN);
 
 		if (input == NULL) {
@@ -212,8 +212,6 @@ void handle_ctrl_cmd_C(int control_connection_fd, char *path) {
 	}
 }
 
-
-// error check first write, if so, do I error check write("E")?
 void handle_ctrl_cmd_Q(int control_connection_fd) {
 	send_ctrl_command(control_connection_fd, 'A', NULL);
 
@@ -275,12 +273,11 @@ void handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 			fprintf(stderr, "Error forking: %s\n", strerror(tmp_errno));
 			exit(tmp_errno);
 		case 0:
-			// close stdout and dup to connect filters
+
 			close(1);
 			dup(data_fd);
 			close(data_fd);
 
-			// exec and check if failed
 			execlp("ls", "ls", "-l", NULL);
 			tmp_errno = errno;
 			fprintf(stderr, "Error execing: %s\n", strerror(tmp_errno));
@@ -298,11 +295,11 @@ void handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *p
 	int actual, tmp_errno, get_fd;
 	struct stat area, *s = &area;
 	char buff[READ_BUF_LEN];
-	// get the status of the given file
+
 	if (lstat(path, s) == 0){
-		// base case 1 is that we hit a regular file
+
 		if (S_ISREG(s->st_mode)) {
-			// cehck if its readable by us
+
 			if (access(path, R_OK) == -1) {
 				send_ctrl_command(control_connection_fd, 'E', strerror(errno));	
 				close(connected_data_fd);
@@ -320,7 +317,7 @@ void handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *p
 			close(connected_data_fd);
 			return;
 		}
-	// getting status of file failed for some reason 
+
 	} else {
 		tmp_errno = errno;
 		perror("Error lstating");

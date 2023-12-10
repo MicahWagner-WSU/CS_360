@@ -17,16 +17,6 @@ int establish_data_connection(int socket_fd, char *hostname);
 int send_ctrl_command(int socket_fd, char command, char *optional_message);
 int manage_response(int socket_fd);
 
-/*
-
-things to do:
-fix: error check the writes in when recieving and sending data / maybe sigPIPE?
-
-NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
-NOTE: might want to add a fatal error function that prints a fatal message and quits for
-
-*/
-
 int main(int argc, char **argv) {
 	int socket_fd, actual, tmp_errno;
 	char *hostname = argv[1];
@@ -52,11 +42,8 @@ int main(int argc, char **argv) {
 	int connected_data_fd = 0;
 	for(;;) {
 
-		// read input
 		char *input = get_input(0, READ_BUF_LEN);
 
-
-		//should quit in here, errno?
 		if (input == NULL) {
 			free(input);
 			return 0;
@@ -64,8 +51,6 @@ int main(int argc, char **argv) {
 
 		first_arg = strtok(input, " \t\n");
 
-		// stub for commands
-		// anything in here is just for testing / getting used to things
 		if (first_arg == NULL) {
 			printf("MFTP> ");
 			fflush(stdout);
@@ -76,8 +61,7 @@ int main(int argc, char **argv) {
 			manage_exit(socket_fd);
 		} else if (strcmp(first_arg, "cd") == 0) {
 			second_arg = strtok(NULL, " ");
-			//not sure what to do with error number
-			//possibly print something else when we put no path
+
 			if (second_arg == NULL) {
 				fprintf(stderr, "Command error: expecting a parameter.\n");
 				printf("MFTP> ");
@@ -87,7 +71,7 @@ int main(int argc, char **argv) {
 			}
 			manage_cd(second_arg);
 		} else if (strcmp(first_arg, "rcd") == 0) {
-			//not sure what to do with the return values here, nothing for now.
+
 			second_arg = strtok(NULL, " ");
 			if (second_arg == NULL) {
 				fprintf(stderr, "Command error: expecting a parameter.\n");
@@ -99,10 +83,11 @@ int main(int argc, char **argv) {
 			manage_rcd(socket_fd,second_arg);
 
 		} else if (strcmp(first_arg, "ls") == 0) {
-			//maybe just exit if we get an error? all errors seem super extreme
+
 			manage_ls();
+
 		} else if (strcmp(first_arg, "rls") == 0) {
-			// currently seg faults if we try to do this (data connection) when server quits unexpectedly, fix
+
 			manage_rls(socket_fd, hostname);
 
 		} else if (strcmp(first_arg, "get") == 0) {
@@ -158,7 +143,6 @@ int establish_socket_connection(char *hostname, int port_num) {
 
 	sprintf(port_string, "%d", port_num);
 
-	/* first get the server address info */
 	err = getaddrinfo(hostname, port_string, &hints, &actual_data);
 
 	if (err != 0) {
@@ -166,7 +150,6 @@ int establish_socket_connection(char *hostname, int port_num) {
 		return -err;
 	}
 
-	/* attempt to create socket */
 	socket_fd = socket(actual_data->ai_family, actual_data->ai_socktype, 0);
 
 	if (socket_fd == -1) {
@@ -175,7 +158,6 @@ int establish_socket_connection(char *hostname, int port_num) {
 		return -tmp_errno;
 	}
 
-	/* attemp to connect to server */
 	tmp_errno = connect(socket_fd, actual_data->ai_addr, actual_data->ai_addrlen);
 
 	if (tmp_errno == -1) {
@@ -234,25 +216,23 @@ void manage_ls() {
 				exit(errno);
 			case 0:
 				if (i == 0) {
-					// we are child, close reader end since we're writing
+
 					close(rdr);
-					// close stdout and dup to connect filters
+
 					close(1);
 					dup(wtr);
 					close(wtr);
 
-					// exec and check if failed
 					execlp("ls", "ls", "-l", NULL);
 					fprintf(stderr, "%s\n", strerror(errno));
 					exit(errno);
 				} else {
-					// we are parent, close writer since we're reading
 					close(wtr);
-					// close stdin and dup to connect filters
+
 					close(0);
 					dup(rdr);
 					close(rdr);
-					// exec and check if failed
+
 					execlp("more", "more", "-20", NULL);
 					fprintf(stderr, "%s\n", strerror(errno));
 					exit(errno);
@@ -291,12 +271,11 @@ void manage_rls(int socket_fd, char *hostname) {
 			fprintf(stderr, "%s\n", strerror(errno));
 			exit(errno);
 		case 0:
-			// close stdin and dup to connect filters
+
 			close(0);
 			dup(data_fd);
 			close(data_fd);
 
-			// exec and check if failed
 			execlp("more", "more", "-20", NULL);
 			fprintf(stderr, "%s\n", strerror(errno));
 			exit(errno);
@@ -384,12 +363,11 @@ void manage_show(int socket_fd, char *hostname, char *path) {
 			fprintf(stderr, "%s\n", strerror(errno));
 			exit(errno);
 		case 0:
-			// close stdin and dup to connect filters
+
 			close(0);
 			dup(data_fd);
 			close(data_fd);
 
-			// exec and check if failed
 			execlp("more", "more", "-20", NULL);
 			fprintf(stderr, "%s\n", strerror(errno));
 			exit(errno);
@@ -413,14 +391,13 @@ void manage_put(int socket_fd, char* hostname, char *path) {
 		return;
 	}
 
-	// get the status of the given file
 	if (lstat(path, s) == 0){
-		// base case 1 is that we hit a regular file
+
 		if (!S_ISREG(s->st_mode) || S_ISDIR(s->st_mode)) {
 			fprintf(stderr, "Local file comp is a directory, command ignored.\n");
 			return;
 		}
-	// getting status of file failed for some reason 
+
 	} else {
 		perror("Error lstating");
 		return;
@@ -446,7 +423,6 @@ void manage_put(int socket_fd, char* hostname, char *path) {
 		return;
 	}
 
-	// read write loop to a new opened file
 	while ((actual = read(put_fd, buff, READ_BUF_LEN)) > 0) {
 		write(data_fd, buff, actual);
 	}
