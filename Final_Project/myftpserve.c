@@ -293,6 +293,7 @@ void handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 	wait(NULL);
 }
 
+//some code was taken from my assingments
 void handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path) {
 	int actual, tmp_errno, get_fd;
 	struct stat area, *s = &area;
@@ -339,17 +340,26 @@ void handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *p
 
 	printf("Child %d: transmitting file %s to client\n", getpid(), path);
 
+	signal(SIGPIPE, SIG_IGN);
 	while((actual = read(get_fd, buff, READ_BUF_LEN)) > 0) {
-		write(connected_data_fd, buff, actual);
+		if (write(connected_data_fd, buff, actual) == -1) {
+			perror("Error writing");
+			close(connected_data_fd);
+			close(get_fd);
+			signal(SIGPIPE, SIG_DFL);
+			return;
+		}
 	}
 
 	if (actual == -1) {
 		perror("Open/creating local file");
 		close(connected_data_fd);
 		close(get_fd);
+		signal(SIGPIPE, SIG_DFL);
 		return;
 	}
 
+	signal(SIGPIPE, SIG_DFL);
 	close(connected_data_fd);
 	close(get_fd);
 }
