@@ -1,9 +1,9 @@
-mftpserve mftp: myftp.o myftpserve.o myftp.h
-	cc -o mftpserve myftpserve.o
-	cc -o mftp myftp.o
-mftp.o: myftp.c myftp.h
+myftpserve myftp: myftp.o myftpserve.o myftp.h
+	cc -o myftpserve myftpserve.o
+	cc -o myftp myftp.o
+myftp.o: myftp.c myftp.h
 	cc -c myftp.c
-mftpserve.o: myftpserve.c myftp.h
+myftpserve.o: myftpserve.c myftp.h
 	cc -c myftpserve.c
 
 .Phony: clean

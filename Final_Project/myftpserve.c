@@ -8,11 +8,11 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address);
 char *get_input(int file_desc, int buf_size);
 
 int handle_ctrl_cmd_D(int control_connection_fd);
-int handle_ctrl_cmd_C(int control_connection_fd, char *path);
-int handle_ctrl_cmd_L(int control_connection_fd, int data_fd);
-int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path);
-int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path);
-int handle_ctrl_cmd_Q(int control_connection_fd);
+void handle_ctrl_cmd_C(int control_connection_fd, char *path);
+void handle_ctrl_cmd_L(int control_connection_fd, int data_fd);
+void handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path);
+void handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path);
+void handle_ctrl_cmd_Q(int control_connection_fd);
 
 int send_ctrl_command(int socket_fd, char command, char *optional_message); 
 
@@ -34,14 +34,14 @@ int main(int argc, char **argv) {
 
 		if(connection_fd == -1) {
 			tmp_errno = errno;
-			perror("Error");
+			perror("Fatal accepting error");
 			exit(tmp_errno);
 		}
 
 		switch (fork()) {
 			case -1:
 				tmp_errno = errno;
-				perror("Error");
+				perror("Fatal fork error");
 				exit(tmp_errno);
 			
 			case 0:
@@ -57,6 +57,7 @@ int main(int argc, char **argv) {
 	}
 }
 
+// some of this code was taken from assignment 8 and slides
 int establish_listening_sock(int port_num) {
 	int listen_fd, connection_fd, tmp_errno;
 	struct sockaddr_in server_address;
@@ -65,7 +66,7 @@ int establish_listening_sock(int port_num) {
 
 	if (listen_fd == -1) {
 		tmp_errno = errno;
-		perror("Error");
+		perror("Error creating socket");
 		return -tmp_errno;
 	}
 
@@ -73,7 +74,7 @@ int establish_listening_sock(int port_num) {
 
 	if (tmp_errno == -1) {
 		tmp_errno = errno;
-		perror("Error");
+		perror("Error setting socket options");
 		return -tmp_errno;
 	}
 
@@ -86,7 +87,7 @@ int establish_listening_sock(int port_num) {
 
 	if (tmp_errno == -1) {
 		tmp_errno = errno;
-		perror("Error");
+		perror("Error binding socket");
 		return -tmp_errno;
 	}
 
@@ -94,7 +95,7 @@ int establish_listening_sock(int port_num) {
 
 	if (tmp_errno == -1) {
 		tmp_errno = errno;
-		perror("Error");
+		perror("Error setting socket to listen");
 		return -tmp_errno;
 	}
 
@@ -116,7 +117,7 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 		NI_NUMERICSERV);
 
 	if (client_entry != 0) {
-		fprintf(stderr, "Error: %s\n", gai_strerror(client_entry));
+		fprintf(stderr, "Error getting client name: %s\n", gai_strerror(client_entry));
 		exit(client_entry);
 	}
 
@@ -186,7 +187,7 @@ int handle_client(int control_connection_fd, struct sockaddr_in client_address) 
 }
 
 
-int handle_ctrl_cmd_C(int control_connection_fd, char *path) {
+void handle_ctrl_cmd_C(int control_connection_fd, char *path) {
 	int tmp_errno;
 	int cd_status;
 
@@ -194,7 +195,7 @@ int handle_ctrl_cmd_C(int control_connection_fd, char *path) {
 		tmp_errno = errno;
 		fprintf(stderr, "cd to %s failed with error message(a): %s\n", path, strerror(tmp_errno));
 		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
-		return tmp_errno;
+		return;
 	}
 
 	if ((cd_status = chdir(path)) == 0) {
@@ -202,23 +203,19 @@ int handle_ctrl_cmd_C(int control_connection_fd, char *path) {
 
 		printf("Child %d: changed directory to %s\n", getpid(), path);
 
-		return 0;
+		return;
 	} else {
 		tmp_errno = errno;
 		fprintf(stderr, "cd to %s failed with error message(c): %s\n", path, strerror(tmp_errno));
 		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
-		return tmp_errno;
+		return;
 	}
 }
 
 
 // error check first write, if so, do I error check write("E")?
-int handle_ctrl_cmd_Q(int control_connection_fd) {
-	int tmp_errno;
-	if ((tmp_errno = send_ctrl_command(control_connection_fd, 'A', NULL)) != 0) {
-		perror("Error writing");
-		exit(tmp_errno);
-	}
+void handle_ctrl_cmd_Q(int control_connection_fd) {
+	send_ctrl_command(control_connection_fd, 'A', NULL);
 
 	printf("Child %d: Quitting\n", getpid());
 
@@ -261,11 +258,12 @@ int handle_ctrl_cmd_D(int control_connection_fd) {
 		return -tmp_errno;
 	}
 
+	close(data_fd);
 	return connected_data_fd;
 
 }
 
-int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
+void handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 	int tmp_errno, status;
 
 	send_ctrl_command(control_connection_fd, 'A', NULL);
@@ -292,17 +290,10 @@ int handle_ctrl_cmd_L(int control_connection_fd, int data_fd) {
 	}
 
 	close(data_fd);
-
-	if (wait(&status) == -1) {
-		tmp_errno = errno;
-		perror("Wait error");
-		return tmp_errno;
-	}	
-
-	return 0;
+	wait(NULL);
 }
 
-int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path) {
+void handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *path) {
 	int actual, tmp_errno, get_fd;
 	struct stat area, *s = &area;
 	char buff[READ_BUF_LEN];
@@ -314,7 +305,7 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 			if (access(path, R_OK) == -1) {
 				send_ctrl_command(control_connection_fd, 'E', strerror(errno));	
 				close(connected_data_fd);
-				return -1;			
+				return;			
 			} else {
 				printf("Child %d: Reading file %s\n", getpid(), path);
 			}
@@ -322,11 +313,11 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 		} else if (S_ISDIR(s->st_mode)){
 			send_ctrl_command(control_connection_fd, 'E', "File is a directory");
 			close(connected_data_fd);
-			return -1;
+			return;
 		} else {
 			send_ctrl_command(control_connection_fd, 'E', "File is a special file");
 			close(connected_data_fd);
-			return -1;
+			return;
 		}
 	// getting status of file failed for some reason 
 	} else {
@@ -334,14 +325,14 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 		perror("Error lstating");
 		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
 		close(connected_data_fd);
-		return -1;
+		return;
 	}
 
 	if ((get_fd = open(path, O_RDONLY)) == -1) {
 		tmp_errno = errno;
 		perror("Open local file for reading");
 		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
-		return -1;
+		return;
 	}
 
 	send_ctrl_command(control_connection_fd, 'A', NULL);
@@ -356,16 +347,14 @@ int handle_ctrl_cmd_G(int control_connection_fd, int connected_data_fd, char *pa
 		perror("Open/creating local file");
 		close(connected_data_fd);
 		close(get_fd);
-		return -1;
+		return;
 	}
 
 	close(connected_data_fd);
 	close(get_fd);
-
-	return 0;
 }
 
-int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path) {
+void handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *path) {
 	int tmp_errno, new_fd, actual;
 	char *tmp;
 	char buff[READ_BUF_LEN];
@@ -375,13 +364,13 @@ int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *pa
 	if (strcmp(tmp, ".") != 0) {
 		send_ctrl_command(control_connection_fd, 'E', "Error, server was sent a pathname.  Base file name expected.");
 		close(connected_data_fd);
-		return -1;
+		return;
 	}
 
 	if (access(path, F_OK) == 0){
 		send_ctrl_command(control_connection_fd, 'E', "File exists");
 		close(connected_data_fd);
-		return -1;
+		return;
 	}
 
 	if ((new_fd = open(path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
@@ -389,7 +378,7 @@ int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *pa
 		perror("Open/creating local file");
 		send_ctrl_command(control_connection_fd, 'E', strerror(tmp_errno));
 		close(connected_data_fd);
-		return -1;
+		return;
 	}
 
 	send_ctrl_command(control_connection_fd, 'A', NULL);
@@ -405,13 +394,11 @@ int handle_ctrl_cmd_P(int control_connection_fd, int connected_data_fd, char *pa
 		close(connected_data_fd);
 		close(new_fd);
 		unlink(path);
-		return -1;
+		return;
 	}
 
 	close(connected_data_fd);
 	close(new_fd);
-	return 0;
-
 }
 
 
@@ -433,7 +420,8 @@ int send_ctrl_command(int socket_fd, char command, char *optional_message) {
 	if (write(socket_fd, ctrl_command, strlen(ctrl_command)) == -1) {
 		tmp_errno = errno;
 		perror("Error writing");
-		return tmp_errno;
+		free(ctrl_command);
+		exit(tmp_errno);
 	}
 	free(ctrl_command);
 	return 0;

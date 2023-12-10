@@ -4,14 +4,14 @@ int establish_socket_connection(char *hostname, int port_num);
 
 char *get_input(int file_desc, int buf_size);
 
-int manage_exit(int socket_fd);
-int manage_cd(char *path);
-int manage_rcd(int socket_fd, char *path);
-int manage_ls();
-int manage_rls(int socket_fd, char *hostname);
-int manage_get(int socket_fd, char *hostname, char *path);
-int manage_show(int socket_fd, char *hostname, char *path);
-int manage_put(int socket_fd, char *hostname, char *path);
+void manage_exit(int socket_fd);
+void manage_cd(char *path);
+void manage_rcd(int socket_fd, char *path);
+void manage_ls();
+void manage_rls(int socket_fd, char *hostname);
+void manage_get(int socket_fd, char *hostname, char *path);
+void manage_show(int socket_fd, char *hostname, char *path);
+void manage_put(int socket_fd, char *hostname, char *path);
 
 int establish_data_connection(int socket_fd, char *hostname);
 int send_ctrl_command(int socket_fd, char command, char *optional_message);
@@ -20,8 +20,7 @@ int manage_response(int socket_fd);
 /*
 
 things to do:
-fix: dont just return errno if you dont use it, be more standard with your return types (possibly just return -1, or void)
-fix: edge case of sending none base name pathname to server
+fix: error check the writes in when recieving and sending data / maybe sigPIPE?
 
 NOTE: dont really need to error check stuff like write, close, dup, malloc, etc.
 NOTE: might want to add a fatal error function that prints a fatal message and quits for
@@ -146,6 +145,7 @@ int main(int argc, char **argv) {
 	}
 }
 
+// some of this code was taken from assignment 8 and slides
 int establish_socket_connection(char *hostname, int port_num) {
 	int socket_fd, num_read, tmp_errno;
 	struct addrinfo hints, *actual_data;
@@ -186,21 +186,14 @@ int establish_socket_connection(char *hostname, int port_num) {
 
 	return socket_fd;
 }
-// 0 success, above 0 errno from client, below 0 error from server
-int manage_exit(int socket_fd) {
-	int tmp_errno, status;
 
-	if ((tmp_errno = send_ctrl_command(socket_fd, 'Q', NULL)) != 0) {
-		tmp_errno = errno;
-		perror("Error sending exit");
-		exit(errno); 
-	}
-
+void manage_exit(int socket_fd) {
+	send_ctrl_command(socket_fd, 'Q', NULL);
 	manage_response(socket_fd);
 	exit(0);
 }
 
-int manage_cd(char *path) {
+void manage_cd(char *path) {
 
 	int tmp_errno;
 	int cd_status;
@@ -208,28 +201,27 @@ int manage_cd(char *path) {
 	if (access(path, R_OK) != 0) {
 		tmp_errno = errno;
 		perror("Change directory");
-		return tmp_errno;
+		return;
 	}
 
 	if ((cd_status = chdir(path)) == 0) {
-		return 0;
+		return;
 	} else {
 		tmp_errno = errno;
 		perror("Change directory");
-		return tmp_errno;
+		return;
 	}
 }
 
-//verbose error checking, ask if I need it
-int manage_ls() {
+
+void manage_ls() {
 
 	int fd[2];
-	int rdr, wtr, tmp_errno;
+	int rdr, wtr;
 
 	if (pipe(fd) == -1) {
-		tmp_errno = errno;
 		perror("Pipe error");
-		return tmp_errno;
+		exit(errno);
 	}
 
 	rdr = fd[0]; wtr = fd[1];
@@ -273,36 +265,24 @@ int manage_ls() {
 
 	close(rdr);
 	close(wtr);
-
-	if (wait(NULL) == -1) {
-		tmp_errno = errno;
-		perror("Wait error");
-		return tmp_errno;
-	}
-
-	if (wait(NULL) == -1) {
-		tmp_errno = errno;
-		perror("Wait error");
-		return tmp_errno;
-	}
-
-	return 0;
+	wait(NULL);
+	wait(NULL);
 }
 
-int manage_rls(int socket_fd, char *hostname) {
-	int tmp_errno, data_fd;
+void manage_rls(int socket_fd, char *hostname) {
+	int data_fd;
 
 	data_fd = establish_data_connection(socket_fd, hostname);
 	if (data_fd < 0) {
 		close(data_fd);
-		return -1;
+		return;
 	}
 
 	send_ctrl_command(socket_fd, 'L', NULL);
 
 	if (manage_response(socket_fd) != 0) {
 		close(data_fd);
-		return -1;
+		return;
 	}
 	
 
@@ -326,65 +306,48 @@ int manage_rls(int socket_fd, char *hostname) {
 
 	close(data_fd);
 
-	if (wait(NULL) == -1) {
-		tmp_errno = errno;
-		perror("Wait error");
-		close(data_fd);
-		return tmp_errno;
-	}
-
-	return 0;
-
+	wait(NULL);
 }
 
-int manage_rcd(int socket_fd, char *path) {
-
-	int tmp_errno;
+void manage_rcd(int socket_fd, char *path) {
 	char *response;
 
 	send_ctrl_command(socket_fd, 'C', path);
 
-	if(manage_response(socket_fd) != 0)
-		return -1;
-
-	return 0;
+	manage_response(socket_fd);
 
 }
 
-int manage_get(int socket_fd, char* hostname, char *path) {
-	int tmp_errno, data_fd, new_fd, actual;
+void manage_get(int socket_fd, char* hostname, char *path) {
+	int data_fd, new_fd, actual;
 	char buff[READ_BUF_LEN];
 	char *response;
 	char *base_path = basename(path);
 
-
-	//NOTE, just do an access here, we know folders cant have the same name as files
-	// get the status of the given file
 	if (access(base_path, F_OK) == 0){
 		fprintf(stderr, "Open/creating local file: File already exists \n");
-		return -1;
+		return;
 	}
 
 	data_fd = establish_data_connection(socket_fd, hostname);
 	if (data_fd < 0) {
 		close(data_fd);
-		return -1;
+		return;
 	}
 
 	send_ctrl_command(socket_fd, 'G', path);
 
 	if (manage_response(socket_fd) != 0) {
 		close(data_fd);
-		return -1;
+		return;
 	}
 
 	if ((new_fd = open(base_path, O_CREAT|O_WRONLY|O_EXCL, 0644)) == -1) {
 		perror("Open/creating local file");
 		close(data_fd);
-		return -1;
+		return;
 	}
 
-	// read write loop to a new opened file
 	while ((actual = read(data_fd, buff, READ_BUF_LEN)) > 0) {
 		write(new_fd, buff, actual);
 	}
@@ -394,30 +357,28 @@ int manage_get(int socket_fd, char* hostname, char *path) {
 		close(data_fd);
 		close(new_fd);
 		unlink(base_path);
-		return -1;
+		return;
 	}
 
 	close(data_fd);
 	close(new_fd);
-	return 0;
 }
 
-int manage_show(int socket_fd, char *hostname, char *path) {
-	char *base_path = basename(path);
+void manage_show(int socket_fd, char *hostname, char *path) {
 	char *response;
-	int tmp_errno, data_fd;
+	int data_fd;
 
 	data_fd = establish_data_connection(socket_fd, hostname);
 	if (data_fd < 0) {
 		close(data_fd);
-		return -1;
+		return;
 	}
 
 	send_ctrl_command(socket_fd, 'G', path);
 
 	if (manage_response(socket_fd) != 0) {
 		close(data_fd);
-		return -1;
+		return;
 	}
 
 	switch (fork()) {
@@ -439,20 +400,11 @@ int manage_show(int socket_fd, char *hostname, char *path) {
 	}
 
 	close(data_fd);
-
-	if (wait(NULL) == -1) {
-		tmp_errno = errno;
-		perror("Wait error");
-		close(data_fd);
-		return tmp_errno;
-	}
-
-	return 0;
-
+	wait(NULL);
 }
 
-int manage_put(int socket_fd, char* hostname, char *path) {
-	int tmp_errno, data_fd, put_fd, actual;
+void manage_put(int socket_fd, char* hostname, char *path) {
+	int data_fd, put_fd, actual;
 	char buff[READ_BUF_LEN];
 	struct stat area, *s = &area;
 	char *response;
@@ -460,7 +412,7 @@ int manage_put(int socket_fd, char* hostname, char *path) {
 
 	if (access(path, F_OK) != 0){
 		perror("Opening file for reading");
-		return -1;
+		return;
 	}
 
 	// get the status of the given file
@@ -468,24 +420,24 @@ int manage_put(int socket_fd, char* hostname, char *path) {
 		// base case 1 is that we hit a regular file
 		if (!S_ISREG(s->st_mode) || S_ISDIR(s->st_mode)) {
 			fprintf(stderr, "Local file comp is a directory, command ignored.\n");
-			return -1;
+			return;
 		}
 	// getting status of file failed for some reason 
 	} else {
 		perror("Error lstating");
-		return -1;
+		return;
 	}
 
 	if ((put_fd = open(path, O_RDONLY)) == -1) {
 		perror("Opening file for reading");
-		return -1;
+		return;
 	}
 
 	data_fd = establish_data_connection(socket_fd, hostname);
 	if (data_fd < 0) {
 		close(put_fd);
 		close(data_fd);
-		return -1;
+		return;
 	}
 
 	send_ctrl_command(socket_fd, 'P', base_path);
@@ -493,7 +445,7 @@ int manage_put(int socket_fd, char* hostname, char *path) {
 	if (manage_response(socket_fd) != 0) {
 		close(put_fd);
 		close(data_fd);
-		return -1;
+		return;
 	}
 
 	// read write loop to a new opened file
@@ -505,23 +457,18 @@ int manage_put(int socket_fd, char* hostname, char *path) {
 		perror("reading from file");
 		close(data_fd);
 		close(put_fd);
-		return -1;
+		return;
 	}
 
 	close(data_fd);
 	close(put_fd);
-	return 0;
 }
 
 int establish_data_connection(int socket_fd, char *hostname) {
 	int tmp_errno, data_fd, port_num;
 	char *response;
 
-	if (write(socket_fd, "D\n", 2) == -1) {
-		tmp_errno = errno;
-		perror("Error writing");
-		return -errno; 
-	}
+	send_ctrl_command(socket_fd, 'D', NULL);
 
 	if ((port_num = manage_response(socket_fd)) < 0) {
 		return -1;
@@ -529,8 +476,8 @@ int establish_data_connection(int socket_fd, char *hostname) {
 
 	data_fd = establish_socket_connection(hostname, port_num);
 
-	if (socket_fd < 0)
-		return socket_fd;
+	if (data_fd < 0)
+		return data_fd;
 
 	return data_fd;
 
@@ -592,7 +539,8 @@ int send_ctrl_command(int socket_fd, char command, char *optional_message) {
 	if (write(socket_fd, ctrl_command, strlen(ctrl_command)) == -1) {
 		tmp_errno = errno;
 		perror("Error writing");
-		return tmp_errno;
+		free(ctrl_command);
+		exit(tmp_errno);
 	}
 	free(ctrl_command);
 	return 0;
