@@ -9,4 +9,4 @@ myftpserve.o: myftpserve.c myftp.h
 .Phony: clean
 
 clean:
-	rm mftp.o mftpserve.o mftpserve mftp
+	rm myftp.o myftpserve.o myftpserve myftp
